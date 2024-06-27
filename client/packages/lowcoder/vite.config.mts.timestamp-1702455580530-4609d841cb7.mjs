@@ -29,7 +29,7 @@ var buildVars = [
   },
   {
     name: "REACT_APP_EDITION",
-    defaultValue: "community"
+    defaultValue: "enterprise"
   },
   {
     name: "REACT_APP_LANGUAGES",

@@ -67,7 +67,7 @@ RUN apt-get update \
 COPY server/node-service/ /lowcoder/node-service/app/
 WORKDIR /lowcoder/node-service/app/
 RUN yarn --immutable
-RUN yarn build
+RUN NODE_OPTIONS="--max-old-space-size=8192" yarn build
 
 # Copy startup script
 COPY deploy/docker/node-service/entrypoint.sh /lowcoder/node-service/entrypoint.sh
@@ -120,24 +120,24 @@ RUN yarn --immutable
 
 ARG REACT_APP_COMMIT_ID=test
 ARG REACT_APP_ENV=production
-ARG REACT_APP_EDITION=community
+ARG REACT_APP_EDITION=enterprise
 ARG REACT_APP_DISABLE_JS_SANDBOX=true
-RUN yarn build
+RUN NODE_OPTIONS="--max-old-space-size=8192" yarn build
 
 # Build lowcoder-comps
 WORKDIR /lowcoder-client/packages/lowcoder-comps
 RUN yarn install
-RUN yarn build
+RUN NODE_OPTIONS="--max-old-space-size=8192" yarn build
 RUN tar -zxf lowcoder-comps-*.tgz && mv package lowcoder-comps
 
 # Build lowcoder-sdk
 WORKDIR /lowcoder-client/packages/lowcoder-sdk
 RUN yarn install
-RUN yarn build
+RUN NODE_OPTIONS="--max-old-space-size=8192" yarn build
 
 WORKDIR /lowcoder-client/packages/lowcoder-sdk-webpack-bundle
 RUN yarn install
-RUN yarn build
+RUN NODE_OPTIONS="--max-old-space-size=8192" yarn build
 
 ##
 ## Intermediary Lowcoder client image
