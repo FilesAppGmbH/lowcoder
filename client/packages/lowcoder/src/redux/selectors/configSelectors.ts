@@ -10,7 +10,10 @@ export const selectSystemConfig = (state: AppState): SystemConfig | undefined =>
 };
 
 export const getBrandingConfig = (state: AppState) => {
-  return state.ui.config.systemConfig?.branding;
+  return {
+    ...state.ui.config.systemConfig?.branding ?? {},
+    brandName: "PRISM by SECaaS",
+  };
 };
 
 export const getExternalEditorState = (state: AppState) => {

@@ -8,14 +8,14 @@ import AuditSetting from "@lowcoder-ee/pages/setting/audit";
 import { isEE, isEnterpriseMode, isSelfDomain, showAuditLog } from "util/envUtils";
 import { TwoColumnSettingPageContent } from "./styled";
 import SubSideBar from "components/layout/SubSideBar";
-import { 
+import {
   Menu,
   UserGroupIcon,
   UserShieldIcon,
   LeftSettingIcon,
   ThemeIcon,
   WorkspacesIcon
- } from "lowcoder-design";
+} from "lowcoder-design";
 import { useSelector } from "react-redux";
 import { getUser } from "redux/selectors/usersSelectors";
 import history from "util/history";
@@ -48,28 +48,28 @@ export function SettingHome() {
     {
       key: SettingPageEnum.Organization,
       label: trans("settings.organization"),
-      icon: <WorkspacesIcon width={"20px"}/>,
+      icon: <WorkspacesIcon width={"20px"} />,
     },
     {
       key: SettingPageEnum.OAuthProvider,
       label: (trans("settings.oauthProviders")),
       disabled: !currentOrgAdmin(user),
-      icon: <UserShieldIcon width={"20px"}/>,
+      icon: <UserShieldIcon width={"20px"} />,
     },
     {
       key: SettingPageEnum.UserGroups,
       label: trans("settings.userGroups"),
-      icon: <UserGroupIcon width={"20px"}/>,
+      icon: <UserGroupIcon width={"20px"} />,
     },
     {
       key: SettingPageEnum.Theme,
       label: trans("settings.theme"),
-      icon: <ThemeIcon width={"20px"}/>,
+      icon: <ThemeIcon width={"20px"} />,
     },
     {
       key: SettingPageEnum.Advanced,
       label: trans("settings.advanced"),
-      icon: <LeftSettingIcon width={"20px"}/>,
+      icon: <LeftSettingIcon width={"20px"} />,
     },
 
     // Premium features
@@ -106,17 +106,17 @@ export function SettingHome() {
     //   ),
     //   disabled: !showAuditLog(config) || !currentOrgAdmin(user),
     // },
-    {
+    /* {
       key: SettingPageEnum.Branding,
       label: (
         <span>
           <span className="text">{trans("settings.branding")}</span>
-          {/* {(!isEE() ||
+           {(!isEE() ||
             !currentOrgAdmin(user) ||
             !enableCustomBrand(config) ||
             (!isSelfDomain(config) && !isEnterpriseMode(config))) && (
             <FreeLimitTag text={trans("settings.premium")} />
-          )} */}
+          )} 
         </span>
       ),
       disabled: false
@@ -124,7 +124,7 @@ export function SettingHome() {
         // !currentOrgAdmin(user) ||
         // !enableCustomBrand(config) ||
         // (!isSelfDomain(config) && !isEnterpriseMode(config)),
-    },
+    }, */
   ];
 
   return (
@@ -138,7 +138,7 @@ export function SettingHome() {
             selectedKeys={[selectKey]}
             onClick={(value) => {
               history.push("/setting/" + value.key);
-            } }
+            }}
             items={items} />
         </SubSideBar>
         {selectKey === SettingPageEnum.UserGroups && <PermissionSetting />}

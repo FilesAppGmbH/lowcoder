@@ -58,7 +58,7 @@ function ForgotPassword() {
   }
 
   const forgotPasswordHeading = trans("userAuth.forgotPassword")
-  const subHeading = trans("userAuth.poweredByLowcoder");
+  const subHeading = "PRISM by SECaaS";
 
   return (
     <AuthContainer

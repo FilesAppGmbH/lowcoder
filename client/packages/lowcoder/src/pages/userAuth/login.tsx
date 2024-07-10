@@ -135,7 +135,7 @@ function Login() {
   }
 
   const loginHeading = getLoginTitle(inviteInfo?.createUserName)
-  const loginSubHeading = trans("userAuth.poweredByLowcoder");
+  const loginSubHeading = "PRISM by SECaaS";
 
   return (
     <>

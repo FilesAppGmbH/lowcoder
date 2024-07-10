@@ -72,7 +72,7 @@ function UserRegister() {
   );
 
   const registerHeading = trans("userAuth.register")
-  const registerSubHeading = trans("userAuth.poweredByLowcoder");
+  const registerSubHeading = "PRISM by SECaaS";
 
   return (
     <AuthContainer

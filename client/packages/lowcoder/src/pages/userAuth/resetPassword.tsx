@@ -68,7 +68,7 @@ function ResetPassword() {
   }
 
   const registerHeading = trans("userAuth.resetPassword")
-  const registerSubHeading = trans("userAuth.poweredByLowcoder");
+  const registerSubHeading = "PRISM by SECaaS";
 
   return (
     <AuthContainer
