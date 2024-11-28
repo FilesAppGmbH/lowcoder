@@ -10,7 +10,7 @@ import { UICompBuilder, withDefault } from "../generators";
 import { CommonNameConfig, NameConfig, withExposingConfigs } from "../generators/withExposing";
 import { formDataChildren, FormDataPropertyView } from "./formComp/formDataConstants";
 import { styleControl } from "comps/controls/styleControl";
-import {  InputFieldStyle, LabelStyle, RatingStyle, RatingStyleType } from "comps/controls/styleControlConstants";
+import {  AnimationStyle, InputFieldStyle, LabelStyle, RatingStyle, RatingStyleType } from "comps/controls/styleControlConstants";
 import { migrateOldData } from "comps/generators/simpleGenerators";
 import { disabledPropertyView, hiddenPropertyView } from "comps/utils/propertyUtils";
 import { trans } from "i18n";
@@ -43,15 +43,21 @@ const RatingBasicComp = (function () {
     allowHalf: BoolControl,
     disabled: BoolCodeControl,
     onEvent: eventHandlerControl(EventOptions),
-    style: withDefault(styleControl(InputFieldStyle), {borderWidth: '1px'}),
-    labelStyle: styleControl(LabelStyle.filter((style) => ['accent', 'validate'].includes(style.name) === false)),
-    inputFieldStyle:migrateOldData(styleControl(RatingStyle), fixOldData),
+    style: styleControl(InputFieldStyle, 'style') , 
+    animationStyle: styleControl(AnimationStyle, 'animationStyle'),
+    labelStyle: styleControl(
+      LabelStyle.filter(
+        (style) => ['accent', 'validate'].includes(style.name) === false
+      ),
+      'labelStyle',
+    ),
+    inputFieldStyle: migrateOldData(styleControl(RatingStyle, 'inputFieldStyle'), fixOldData),
     ...formDataChildren,
   };
   return new UICompBuilder(childrenMap, (props) => {
     const defaultValue = { ...props.defaultValue }.value;
     const value = { ...props.value }.value;
-    const changeRef = useRef(false)
+    const changeRef = useRef(false);
 
     useEffect(() => {
       props.value.onChange(defaultValue);
@@ -68,10 +74,11 @@ const RatingBasicComp = (function () {
       style: props.style,
       labelStyle: props.labelStyle,
       inputFieldStyle:props.inputFieldStyle,
+      animationStyle:props.animationStyle,
       children: (
         <RateStyled
           count={props.max}
-          value={props.value.value}
+          value={value}
           onChange={(e) => {
             props.value.onChange(e);
             changeRef.current = true;
@@ -123,6 +130,9 @@ const RatingBasicComp = (function () {
               </Section>
               <Section name={sectionNames.inputFieldStyle}>
                 {children.inputFieldStyle.getPropertyView()}
+              </Section>
+              <Section name={sectionNames.animationStyle} hasTooltip={true}>
+                {children.animationStyle.getPropertyView()}
               </Section>
             </>
           )}

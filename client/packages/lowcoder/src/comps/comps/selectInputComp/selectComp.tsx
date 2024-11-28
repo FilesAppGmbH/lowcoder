@@ -15,20 +15,20 @@ import {
   SelectInputInvalidConfig,
   useSelectInputValidate,
 } from "./selectInputConstants";
-import { useRef } from "react";
+import { useContext, useEffect, useRef } from "react";
 import { RecordConstructorToView } from "lowcoder-core";
 import { fixOldInputCompData } from "../textInputComp/textInputConstants";
-import { migrateOldData } from "comps/generators/simpleGenerators";
+import { migrateOldData, withDefault } from "comps/generators/simpleGenerators";
 
 let SelectBasicComp = (function () {
   const childrenMap = {
     ...SelectChildrenMap,
     defaultValue: stringExposingStateControl("defaultValue"),
     value: stringExposingStateControl("value"),
-    style: styleControl(InputFieldStyle),
-    labelStyle: styleControl(LabelStyle),
-    inputFieldStyle: styleControl(SelectStyle),
-    childrenInputFieldStyle: styleControl(ChildrenMultiSelectStyle)
+    style: styleControl(InputFieldStyle , 'style'),
+    labelStyle: styleControl(LabelStyle , 'labelStyle'),
+    inputFieldStyle: styleControl(SelectStyle , 'inputFieldStyle'),
+    childrenInputFieldStyle: styleControl(ChildrenMultiSelectStyle, 'childrenInputFieldStyle')
   };
   return new UICompBuilder(childrenMap, (props, dispatch) => {
     const [
@@ -55,6 +55,7 @@ let SelectBasicComp = (function () {
           dispatch={dispatch}
         />
       ),
+      showValidationWhenEmpty: props.showValidationWhenEmpty,
       ...validateState,
     });
   })

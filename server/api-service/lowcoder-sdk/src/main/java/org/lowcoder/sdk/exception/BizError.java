@@ -102,6 +102,7 @@ public enum BizError {
     JWT_NOT_FIND(400, 5619),
     ID_NOT_EXIST(500, 5620),
     DUPLICATE_AUTH_CONFIG_ADDITION(400, 5621),
+    EMAIL_PROVIDER_DISABLED(403, 5622),
 
 
     // asset related, code range 5700 - 5799
@@ -143,6 +144,12 @@ public enum BizError {
 
     // material 6351 - 6400
     INVALID_MATERIAL_REQUEST(500, 6351),
+
+    //bundle 6401 - 6450
+    BUNDLE_OPERATE_NO_PERMISSION(500, 6401),
+    BUNDLE_NOT_EXIST(500, 6402),
+    BUNDLE_NAME_CONFLICT(500, 6403),
+    ILLEGAL_BUNDLE_PERMISSION_ID(500, 6404),
     ;
 
     static {

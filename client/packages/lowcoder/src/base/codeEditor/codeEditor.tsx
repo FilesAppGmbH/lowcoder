@@ -14,6 +14,7 @@ import { CodeEditorPanel } from "../../pages/editor/codeEditorPanel";
 import type { CodeEditorProps, StyleName } from "./codeEditorTypes";
 import { useClickCompNameEffect } from "./clickCompName";
 import { Layers } from "../../constants/Layers";
+import { debounce } from "lodash";
 
 type StyleConfig = {
   minHeight: string;
@@ -221,10 +222,12 @@ function useCodeMirror(
   const handleChange = useCallback(
     (state: EditorState) => {
       window.clearTimeout(isTypingRef.current);
-      isTypingRef.current = window.setTimeout(() => (isTypingRef.current = 0), 100);
-      onChange?.(state);
-    },
-    [onChange]
+      isTypingRef.current = window.setTimeout(() => {
+        isTypingRef.current = 0;
+        onChange?.(state);
+      }, 500);
+    }
+    , [onChange]
   );
 
   const { extensions, reconfigure, isFocus } = useExtensions({

@@ -17,11 +17,13 @@ import org.lowcoder.api.application.view.ApplicationPermissionView;
 import org.lowcoder.api.application.view.ApplicationView;
 import org.lowcoder.api.application.view.MarketplaceApplicationInfoView;
 // should we not have a AgencyApplicationInfoView
+import org.lowcoder.api.framework.view.PageResponseView;
 import org.lowcoder.api.framework.view.ResponseView;
 import org.lowcoder.api.home.SessionUserService;
 import org.lowcoder.api.home.UserHomeApiService;
 import org.lowcoder.api.home.UserHomepageView;
 import org.lowcoder.api.util.BusinessEventPublisher;
+import org.lowcoder.api.util.GidService;
 import org.lowcoder.domain.application.model.Application;
 import org.lowcoder.domain.application.model.ApplicationRequestType;
 import org.lowcoder.domain.application.model.ApplicationStatus;
@@ -43,6 +45,7 @@ public class ApplicationController implements ApplicationEndpoints {
     private final ApplicationApiService applicationApiService;
     private final BusinessEventPublisher businessEventPublisher;
     private final SessionUserService sessionUserService;
+    private final GidService gidService;
 
     @Override
     public Mono<ResponseView<ApplicationView>> create(@RequestBody CreateApplicationRequest createApplicationRequest) {
@@ -60,59 +63,66 @@ public class ApplicationController implements ApplicationEndpoints {
 
     @Override
     public Mono<ResponseView<Boolean>> recycle(@PathVariable String applicationId) {
-        return applicationApiService.recycle(applicationId)
+        String appId = gidService.convertApplicationIdToObjectId(applicationId);
+        return applicationApiService.recycle(appId)
                 .delayUntil(__ -> businessEventPublisher.publishApplicationCommonEvent(applicationId, null, APPLICATION_RECYCLED))
                 .map(ResponseView::success);
     }
 
     @Override
     public Mono<ResponseView<Boolean>> restore(@PathVariable String applicationId) {
-        return applicationApiService.restore(applicationId)
+        String appId = gidService.convertApplicationIdToObjectId(applicationId);
+        return applicationApiService.restore(appId)
                 .delayUntil(__ -> businessEventPublisher.publishApplicationCommonEvent(applicationId, null, APPLICATION_RESTORE))
                 .map(ResponseView::success);
     }
 
     @Override
-    public Mono<ResponseView<List<ApplicationInfoView>>> getRecycledApplications() {
-        return applicationApiService.getRecycledApplications()
+    public Mono<ResponseView<List<ApplicationInfoView>>> getRecycledApplications(@RequestParam(required = false) String name) {
+        return applicationApiService.getRecycledApplications(name)
                 .collectList()
                 .map(ResponseView::success);
     }
 
     @Override
     public Mono<ResponseView<ApplicationView>> delete(@PathVariable String applicationId) {
-        return applicationApiService.delete(applicationId)
+        String appId = gidService.convertApplicationIdToObjectId(applicationId);
+        return applicationApiService.delete(appId)
                 .delayUntil(applicationView -> businessEventPublisher.publishApplicationCommonEvent(applicationView, APPLICATION_DELETE))
                 .map(ResponseView::success);
     }
 
     @Override
     public Mono<ResponseView<ApplicationView>> getEditingApplication(@PathVariable String applicationId) {
-        return applicationApiService.getEditingApplication(applicationId)
-                .delayUntil(__ -> applicationApiService.updateUserApplicationLastViewTime(applicationId))
+        String appId = gidService.convertApplicationIdToObjectId(applicationId);
+        return applicationApiService.getEditingApplication(appId)
+                .delayUntil(__ -> applicationApiService.updateUserApplicationLastViewTime(appId))
                 .map(ResponseView::success);
     }
 
     @Override
     public Mono<ResponseView<ApplicationView>> getPublishedApplication(@PathVariable String applicationId) {
-        return applicationApiService.getPublishedApplication(applicationId, ApplicationRequestType.PUBLIC_TO_ALL)
-                .delayUntil(applicationView -> applicationApiService.updateUserApplicationLastViewTime(applicationId))
+        String appId = gidService.convertApplicationIdToObjectId(applicationId);
+        return applicationApiService.getPublishedApplication(appId, ApplicationRequestType.PUBLIC_TO_ALL)
+                .delayUntil(applicationView -> applicationApiService.updateUserApplicationLastViewTime(appId))
                 .delayUntil(applicationView -> businessEventPublisher.publishApplicationCommonEvent(applicationView, APPLICATION_VIEW))
                 .map(ResponseView::success);
     }
 
     @Override
     public Mono<ResponseView<ApplicationView>> getPublishedMarketPlaceApplication(@PathVariable String applicationId) {
-        return applicationApiService.getPublishedApplication(applicationId, ApplicationRequestType.PUBLIC_TO_MARKETPLACE)
-                .delayUntil(applicationView -> applicationApiService.updateUserApplicationLastViewTime(applicationId))
+        String appId = gidService.convertApplicationIdToObjectId(applicationId);
+        return applicationApiService.getPublishedApplication(appId, ApplicationRequestType.PUBLIC_TO_MARKETPLACE)
+                .delayUntil(applicationView -> applicationApiService.updateUserApplicationLastViewTime(appId))
                 .delayUntil(applicationView -> businessEventPublisher.publishApplicationCommonEvent(applicationView, APPLICATION_VIEW))
                 .map(ResponseView::success);
     }
 
     @Override
     public Mono<ResponseView<ApplicationView>> getAgencyProfileApplication(@PathVariable String applicationId) {
-        return applicationApiService.getPublishedApplication(applicationId, ApplicationRequestType.AGENCY_PROFILE)
-                .delayUntil(applicationView -> applicationApiService.updateUserApplicationLastViewTime(applicationId))
+        String appId = gidService.convertApplicationIdToObjectId(applicationId);
+        return applicationApiService.getPublishedApplication(appId, ApplicationRequestType.AGENCY_PROFILE)
+                .delayUntil(applicationView -> applicationApiService.updateUserApplicationLastViewTime(appId))
                 .delayUntil(applicationView -> businessEventPublisher.publishApplicationCommonEvent(applicationView, APPLICATION_VIEW))
                 .map(ResponseView::success);
     }
@@ -120,14 +130,23 @@ public class ApplicationController implements ApplicationEndpoints {
     @Override
     public Mono<ResponseView<ApplicationView>> update(@PathVariable String applicationId,
             @RequestBody Application newApplication) {
-        return applicationApiService.update(applicationId, newApplication)
+        String appId = gidService.convertApplicationIdToObjectId(applicationId);
+        return applicationApiService.update(appId, newApplication)
                 .delayUntil(applicationView -> businessEventPublisher.publishApplicationCommonEvent(applicationView, APPLICATION_UPDATE))
                 .map(ResponseView::success);
     }
 
     @Override
     public Mono<ResponseView<ApplicationView>> publish(@PathVariable String applicationId) {
-        return applicationApiService.publish(applicationId)
+        String appId = gidService.convertApplicationIdToObjectId(applicationId);
+        return applicationApiService.publish(appId)
+                .map(ResponseView::success);
+    }
+
+    @Override
+    public Mono<ResponseView<Boolean>> updateEditState(@PathVariable String applicationId, @RequestBody UpdateEditStateRequest updateEditStateRequest) {
+        String appId = gidService.convertApplicationIdToObjectId(applicationId);
+        return applicationApiService.updateEditState(appId, updateEditStateRequest)
                 .map(ResponseView::success);
     }
 
@@ -141,11 +160,17 @@ public class ApplicationController implements ApplicationEndpoints {
     @Override
     public Mono<ResponseView<List<ApplicationInfoView>>> getApplications(@RequestParam(required = false) Integer applicationType,
             @RequestParam(required = false) ApplicationStatus applicationStatus,
-            @RequestParam(defaultValue = "true") boolean withContainerSize) {
+            @RequestParam(defaultValue = "true") boolean withContainerSize,
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false, defaultValue = "0") Integer pageNum,
+            @RequestParam(required = false, defaultValue = "0") Integer pageSize) {
         ApplicationType applicationTypeEnum = applicationType == null ? null : ApplicationType.fromValue(applicationType);
-        return userHomeApiService.getAllAuthorisedApplications4CurrentOrgMember(applicationTypeEnum, applicationStatus, withContainerSize)
-                .collectList()
-                .map(ResponseView::success);
+        var flux = userHomeApiService.getAllAuthorisedApplications4CurrentOrgMember(applicationTypeEnum, applicationStatus, withContainerSize, name).cache();
+        Mono<Long> countMono = flux.count();
+        var flux1 = flux.skip((long) pageNum * pageSize);
+        if(pageSize > 0) flux1 = flux1.take(pageSize);
+        return flux1.collectList().zipWith(countMono)
+                .map(tuple -> PageResponseView.success(tuple.getT1(), pageNum, pageSize, Math.toIntExact(tuple.getT2())));
     }
 
     @Override
@@ -168,12 +193,13 @@ public class ApplicationController implements ApplicationEndpoints {
     public Mono<ResponseView<Boolean>> updatePermission(@PathVariable String applicationId,
             @PathVariable String permissionId,
             @RequestBody UpdatePermissionRequest updatePermissionRequest) {
+        String appId = gidService.convertApplicationIdToObjectId(applicationId);
         ResourceRole role = ResourceRole.fromValue(updatePermissionRequest.role());
         if (role == null) {
             return ofError(INVALID_PARAMETER, "INVALID_PARAMETER", updatePermissionRequest);
         }
 
-        return applicationApiService.updatePermission(applicationId, permissionId, role)
+        return applicationApiService.updatePermission(appId, permissionId, role)
                 .map(ResponseView::success);
     }
 
@@ -181,8 +207,9 @@ public class ApplicationController implements ApplicationEndpoints {
     public Mono<ResponseView<Boolean>> removePermission(
             @PathVariable String applicationId,
             @PathVariable String permissionId) {
+        String appId = gidService.convertApplicationIdToObjectId(applicationId);
 
-        return applicationApiService.removePermission(applicationId, permissionId)
+        return applicationApiService.removePermission(appId, permissionId)
                 .map(ResponseView::success);
     }
 
@@ -190,11 +217,12 @@ public class ApplicationController implements ApplicationEndpoints {
     public Mono<ResponseView<Boolean>> grantPermission(
             @PathVariable String applicationId,
             @RequestBody BatchAddPermissionRequest request) {
+        String appId = gidService.convertApplicationIdToObjectId(applicationId);
         ResourceRole role = ResourceRole.fromValue(request.role());
         if (role == null) {
             return ofError(INVALID_PARAMETER, "INVALID_PARAMETER", request.role());
         }
-        return applicationApiService.grantPermission(applicationId,
+        return applicationApiService.grantPermission(appId,
                         emptyIfNull(request.userIds()),
                         emptyIfNull(request.groupIds()),
                         role)
@@ -204,28 +232,32 @@ public class ApplicationController implements ApplicationEndpoints {
 
     @Override
     public Mono<ResponseView<ApplicationPermissionView>> getApplicationPermissions(@PathVariable String applicationId) {
-        return applicationApiService.getApplicationPermissions(applicationId)
+        String appId = gidService.convertApplicationIdToObjectId(applicationId);
+        return applicationApiService.getApplicationPermissions(appId)
                 .map(ResponseView::success);
     }
 
     @Override
     public Mono<ResponseView<Boolean>> setApplicationPublicToAll(@PathVariable String applicationId,
             @RequestBody ApplicationPublicToAllRequest request) {
-        return applicationApiService.setApplicationPublicToAll(applicationId, request.publicToAll())
+        String appId = gidService.convertApplicationIdToObjectId(applicationId);
+        return applicationApiService.setApplicationPublicToAll(appId, request.publicToAll())
                 .map(ResponseView::success);
     }
 
     @Override
     public Mono<ResponseView<Boolean>> setApplicationPublicToMarketplace(@PathVariable String applicationId,
                                                                          @RequestBody ApplicationPublicToMarketplaceRequest request) {
-        return applicationApiService.setApplicationPublicToMarketplace(applicationId, request)
+        String appId = gidService.convertApplicationIdToObjectId(applicationId);
+        return applicationApiService.setApplicationPublicToMarketplace(appId, request)
                 .map(ResponseView::success);
     }
 
     @Override
     public Mono<ResponseView<Boolean>> setApplicationAsAgencyProfile(@PathVariable String applicationId,
                                                                      @RequestBody ApplicationAsAgencyProfileRequest request) {
-        return applicationApiService.setApplicationAsAgencyProfile(applicationId, request.agencyProfile())
+        String appId = gidService.convertApplicationIdToObjectId(applicationId);
+        return applicationApiService.setApplicationAsAgencyProfile(appId, request.agencyProfile())
                 .map(ResponseView::success);
     }
 

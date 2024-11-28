@@ -28,6 +28,7 @@ import {
 import {
   ControlPropertyViewWrapper,
   isValidColor,
+  isValidGradient,
   toHex,
   wrapperToControlItem,
 } from "lowcoder-design";
@@ -100,18 +101,18 @@ export function codeControl<
       this._exposingNode = withFunction(this._node, (x) => x.value);
 
       // make sure handleChange's reference only changes when the instance changes, avoid CodeEditor frequent reconfigure
-      this.handleChange = debounce((state: EditorState) => {
+      this.handleChange = (state: EditorState) => {
         this.dispatchChangeValueAction(state.doc.toString());
-      }, 50);
+      };
     }
 
     override changeDispatch(dispatch: DispatchType) {
       // need to re-bind handleChange when dispatch changes, otherwise old instance's dispatch is still in use
       const comp = setFieldsNoTypeCheck(this, {
         dispatch,
-        handleChange: debounce((state: EditorState) => {
+        handleChange: (state: EditorState) => {
           comp.dispatchChangeValueAction(state.doc.toString());
-        }, 50),
+        },
       });
       return comp;
     }
@@ -432,7 +433,7 @@ export function stringUnionControl<T extends readonly string[]>(
 export const ColorCodeControl = codeControl<string>(
   (value: unknown) => {
     const valueString = toString(value);
-
+    
     if (valueString === "") {
       return valueString;
     }
@@ -440,6 +441,9 @@ export const ColorCodeControl = codeControl<string>(
       return toHex(valueString);
     }
     if (isThemeColorKey(valueString)) {
+      return valueString;
+    }
+    if (isValidGradient(valueString)) {
       return valueString;
     }
     throw new Error(`the argument must be type CSS color`);
@@ -463,6 +467,9 @@ export const ColorOrBoolCodeControl = codeControl<string>(
       return toHex(valueString);
     }
     if (isThemeColorKey(valueString)) {
+      return valueString;
+    }
+    if (isValidGradient(valueString)) {
       return valueString;
     }
     throw new Error(`the argument must be type CSS color or Boolean`);

@@ -17,7 +17,7 @@ import { TransformerListComp } from "./transformerListComp";
 import UIComp from "./uiComp";
 import { ThemeContext } from "comps/utils/themeContext";
 import { ModuleLayoutCompName } from "constants/compConstants";
-import { defaultTheme as localDefaultTheme } from "comps/controls/styleControlConstants";
+import { defaultTheme as localDefaultTheme } from "constants/themeConstants";
 import { ModuleLoading } from "components/ModuleLoading";
 import EditorSkeletonView from "pages/editor/editorSkeletonView";
 import { getGlobalSettings } from "comps/utils/globalSettings";
@@ -32,6 +32,8 @@ import {
 import RefTreeComp from "./refTreeComp";
 import { ExternalEditorContext } from "util/context/ExternalEditorContext";
 import { useUserViewMode } from "util/hooks";
+import React from "react";
+import { isEqual } from "lodash";
 
 const EditorView = lazy(
   () => import("pages/editor/editorView"),
@@ -55,7 +57,7 @@ const childrenMap = {
   preload: PreloadComp,
 };
 
-function RootView(props: RootViewProps) {
+const RootView = React.memo((props: RootViewProps) => {
   const previewTheme = useContext(ThemeContext);
   const { comp, isModuleRoot, ...divProps } = props;
   const [editorState, setEditorState] = useState<EditorState>();
@@ -65,11 +67,16 @@ function RootView(props: RootViewProps) {
   const appThemeId = comp.children.settings.getView().themeId;
   const { orgCommonSettings } = getGlobalSettings();
   const themeList = orgCommonSettings?.themeList || [];
+  const selectedTheme = getCurrentTheme(themeList, appThemeId);
 
   const theme =
     previewTheme?.previewTheme ||
-    getCurrentTheme(themeList, appThemeId)?.theme ||
+    selectedTheme?.theme ||
     localDefaultTheme;
+  
+  const themeId = selectedTheme ? selectedTheme.id : (
+    previewTheme ? "preview-theme" : 'default-theme-id'
+  ); 
 
   useEffect(() => {
     const newEditorState = new EditorState(comp, (changeEditorStateFn) => {
@@ -90,6 +97,7 @@ function RootView(props: RootViewProps) {
   const themeContextValue = useMemo(
     () => ({
       theme,
+      themeId,
     }),
     [theme]
   );
@@ -137,7 +145,9 @@ function RootView(props: RootViewProps) {
       </PropertySectionContext.Provider>
     </div>
   );
-}
+}, (prevProps, nextProps) => {
+  return isEqual(prevProps, nextProps);
+});
 
 /**
  * Root Comp

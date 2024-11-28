@@ -16,6 +16,7 @@ import { changeEvent, eventHandlerControl } from "comps/controls/eventHandlerCon
 import { jsonObjectExposingStateControl, stringExposingStateControl } from "comps/controls/codeStateControl";
 import { dropdownControl } from "comps/controls/dropdownControl";
 import { ArrayOrJSONObjectControl } from "comps/controls/codeControl";
+import { JSONObject } from "@lowcoder-ee/util/jsonTypes";
 
 export function getStyle(style: ColorPickerStyleType) {
   return css`
@@ -23,6 +24,9 @@ export function getStyle(style: ColorPickerStyleType) {
     &:not(.ant-input-disabled, .ant-input-affix-wrapper-disabled),
     input {
       background-color: ${style.background};
+      color:${style.text};
+      font-weight:${style.textWeight};
+      font-family:${style.fontFamily};
       border-color: ${style.border};
       &:focus,
       &.ant-input-affix-wrapper-focused {
@@ -57,7 +61,7 @@ export const colorPickerEvent = eventHandlerControl([
 const childrenMap = {
   ...textInputChildren,
   value: stringExposingStateControl('value', '#3377ff'),
-  style: styleControl(ColorPickerStyle),
+  style: styleControl(ColorPickerStyle , 'style'),
   color: jsonObjectExposingStateControl('color', {}),
   trigger: dropdownControl(colorPickerTriggerOption, 'click'),
   disabledAlpha: BoolControl,
@@ -82,7 +86,7 @@ export const ColorPickerComp = new UICompBuilder(childrenMap, (props) => {
           props.color.onChange({
             hex: value.toHexString().toUpperCase(),
             hsb: value.toHsb(),
-            rgb: value.toRgb(),
+            rgb: value.toRgb() as any,
           })
           props.onEvent('change')
         }}

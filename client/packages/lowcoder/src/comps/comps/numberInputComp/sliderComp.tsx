@@ -23,9 +23,10 @@ const SliderBasicComp = (function () {
       style: props.style,
       labelStyle: props.labelStyle,
       inputFieldStyle:props.inputFieldStyle,
+      animationStyle:props.animationStyle,
       children: (
         <SliderWrapper
-          vertical={props.vertical}
+          $vertical={Boolean(props.vertical)}
           onMouseDown={(e: any) => {
             e.stopPropagation();
             return false;
@@ -37,7 +38,7 @@ const SliderBasicComp = (function () {
             value={props.value.value}
             $style={props.inputFieldStyle}
             style={{margin: 0}}
-            vertical={props.vertical || false}
+            $vertical={Boolean(props.vertical) || false}
             onChange={(e) => {
               props.value.onChange(e);
               props.onEvent("change");

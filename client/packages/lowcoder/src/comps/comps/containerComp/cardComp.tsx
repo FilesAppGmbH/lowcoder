@@ -13,20 +13,28 @@ import { useContext, useEffect, useRef, useState } from "react";
 import { EditorContext } from "comps/editorState";
 import { Card } from "antd";
 import styled from "styled-components";
-import { CardHeaderStyle, CardHeaderStyleType, CardStyle, CardStyleType } from "comps/controls/styleControlConstants";
+import { AnimationStyle, AnimationStyleType, CardHeaderStyle, CardHeaderStyleType, CardStyle, CardStyleType } from "comps/controls/styleControlConstants";
 import { MultiCompBuilder, withDefault } from "comps/generators";
 import { IconControl } from "comps/controls/iconControl";
 import { ButtonEventHandlerControl, CardEventHandlerControl, clickEvent, refreshEvent } from "comps/controls/eventHandlerControl";
 import { optionsControl } from "comps/controls/optionsControl";
 import { dropdownControl } from "comps/controls/dropdownControl";
 import { styleControl } from "comps/controls/styleControl";
+import { getBackgroundStyle } from "@lowcoder-ee/util/styleUtils";
+
 const { Meta } = Card;
 
-const Warpper = styled.div<{ $style: CardStyleType | undefined, $showMate: boolean, $cardType: string, $headerStyle:CardHeaderStyleType, $bodyStyle:CardHeaderStyleType }>`
+const Wrapper = styled.div<{
+  $style: CardStyleType | undefined;
+  $showMate: boolean;
+  $cardType: string;
+  $headerStyle: CardHeaderStyleType;
+  $bodyStyle: CardHeaderStyleType;
+  $animationStyle:AnimationStyleType;
+}>`
   height: 100%;
   width: 100%;
   .ant-card-small >.ant-card-head {
-    background-color: ${props => props.$headerStyle?.background} !important;
     border: ${props => props.$headerStyle?.border};
     border-style: ${props => props.$headerStyle?.borderStyle};
     border-width: ${props => props.$headerStyle?.borderWidth};
@@ -41,6 +49,11 @@ const Warpper = styled.div<{ $style: CardStyleType | undefined, $showMate: boole
     rotate: ${props => props.$headerStyle?.rotation};
     margin: ${props => props.$headerStyle?.margin};
     padding: ${props => props.$headerStyle?.padding};
+    ${props => getBackgroundStyle(props.$headerStyle)}
+  }
+  .ant-card-head-title{
+    font-size: ${props => props.$headerStyle?.textSize};
+    font-family: ${props => props.$headerStyle?.fontFamily};
   }
   .ant-card .ant-card-actions {
     border-top: 1px solid ${props => props.$style?.border};
@@ -49,10 +62,9 @@ const Warpper = styled.div<{ $style: CardStyleType | undefined, $showMate: boole
     border-inline-end: 1px solid ${props => props.$style?.border};
   }
   .ant-card .ant-card-actions {
-    background-color: ${props => props.$style?.background};
+    ${props => props.$style && getBackgroundStyle(props.$style)}
   }
   .ant-card .ant-card-body {
-   background-color: ${props => props.$bodyStyle?.background} !important;
     border: ${props => props.$bodyStyle?.border};
     border-style: ${props => props.$bodyStyle?.borderStyle};
     border-width: ${props => props.$bodyStyle?.borderWidth};
@@ -60,16 +72,22 @@ const Warpper = styled.div<{ $style: CardStyleType | undefined, $showMate: boole
     rotate: ${props => props.$bodyStyle?.rotation};
     margin: ${props => props.$bodyStyle?.margin};
     padding: ${props => props.$bodyStyle?.padding};
+    ${props => getBackgroundStyle(props.$bodyStyle)}
   }
   .ant-card {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    background-color: ${props => props.$style?.background};
+    margin: ${props => props.$style?.margin};
+    padding: ${props => props.$style?.padding};
     border: ${props => props.$style?.border};
+    rotate: ${props => props.$style?.rotation};
     border-style: ${props => props.$style?.borderStyle};
     border-radius: ${props => props.$style?.radius};
     border-width: ${props => props.$style?.borderWidth};
+    box-shadow: ${props=>`${props.$style?.boxShadow} ${props.$style?.boxShadowColor}`};
+    ${props => props.$style && getBackgroundStyle(props.$style)}
+    ${props=>props.$animationStyle}
   }
   .ant-card-body {
     display: ${props => props.$showMate ? '' : 'none'};
@@ -95,12 +113,12 @@ const Warpper = styled.div<{ $style: CardStyleType | undefined, $showMate: boole
   }
 `;
 
-const ContainWarpper = styled.div`
+const ContainWrapper = styled.div`
   height: 100%;
   width: 100%;
 `
 
-const IconWarpper = styled.div<{ $style: CardStyleType | undefined, disabled: boolean }>`
+const IconWrapper = styled.div<{ $style: CardStyleType | undefined, disabled: boolean }>`
   pointer-events: ${props => props.disabled ? 'none' : ''};
   svg {
     color: ${props => props.disabled ? '#d9d9d9' : props.$style?.IconColor};
@@ -170,12 +188,13 @@ export const ContainerBaseComp = (function () {
     actionOptions: ActionOptionControl,
 
     onEvent: CardEventHandlerControl,
-    style: styleControl(CardStyle),
-    headerStyle: styleControl(CardHeaderStyle),
-    bodyStyle: styleControl(CardHeaderStyle),
+    style: styleControl(CardStyle , 'style'),
+    headerStyle: styleControl(CardHeaderStyle , 'headerStyle'),
+    bodyStyle: styleControl(CardHeaderStyle , 'bodyStyle'),
+    animationStyle: styleControl(AnimationStyle , 'animationStyle'),
   };
 
-  return new ContainerCompBuilder(childrenMap, (props, dispatch) => {
+  return new ContainerCompBuilder(childrenMap, (props) => {    
     props.container.showHeader = false;
     // 注入容器参数
     props.container.style = Object.assign(props.container.style, {
@@ -199,9 +218,10 @@ export const ContainerBaseComp = (function () {
     };
     return (
       <ReactResizeDetector onResize={onResize}>
-        <Warpper
+        <Wrapper
           ref={conRef}
           $style={props.style}
+          $animationStyle={props.animationStyle}
           $headerStyle={props.headerStyle}
           $bodyStyle={props.bodyStyle}
           $showMate={props.showMeta || props.cardType == 'custom'}
@@ -223,23 +243,23 @@ export const ContainerBaseComp = (function () {
             actions={props.cardType == 'common' && props.showActionIcon ?
               props.actionOptions.filter(item => !item.hidden).map(item => {
                 return (
-                  <IconWarpper
+                  <IconWrapper
                     onClick={() => item.onEvent('click')}
                     disabled={item.disabled}
                     $style={props.style}
                   >
                     {item.icon}
-                  </IconWarpper>)
+                  </IconWrapper>)
               }
               ) : []
             }
           >
             {props.cardType == 'common' && props.showMeta && <Meta title={props.metaTitle} description={props.metaDesc} />}
-            {props.cardType == 'custom' && <ContainWarpper>
-              <TriContainer {...props} /></ContainWarpper>}
+            {props.cardType == 'custom' && <ContainWrapper>
+              <TriContainer {...props} /></ContainWrapper>}
           </Card>
           }
-        </Warpper>
+        </Wrapper>
       </ReactResizeDetector>
     );
   })
@@ -320,6 +340,9 @@ export const ContainerBaseComp = (function () {
               </Section>
               <Section name={sectionNames.bodyStyle}>
                 {children.bodyStyle.getPropertyView()}
+              </Section>
+              <Section name={sectionNames.animationStyle} hasTooltip={true}>
+                {children.animationStyle.getPropertyView()}
               </Section>
             </>
           )}

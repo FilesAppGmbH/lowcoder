@@ -23,10 +23,11 @@ public interface FolderApiService {
     Mono<FolderInfoView> update(Folder folder);
 
     Mono<Void> move(String applicationLikeId, @Nullable String targetFolderId);
+    Mono<Void> moveBundle(String bundleId, @Nullable String targetFolderId);
 
     Mono<Void> upsertLastViewTime(@Nullable String folderId);
 
-    Flux<?> getElements(@Nullable String folderId, @Nullable ApplicationType applicationType);
+    Flux<?> getElements(@Nullable String folderId, @Nullable ApplicationType applicationType, @Nullable String name);
 
     Mono<Void> grantPermission(String folderId, Set<String> userIds, Set<String> groupIds, ResourceRole role);
 

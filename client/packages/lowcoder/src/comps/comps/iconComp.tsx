@@ -4,6 +4,8 @@ import { RecordConstructorToView } from "lowcoder-core";
 import { styleControl } from "comps/controls/styleControl";
 import _ from "lodash";
 import {
+  AnimationStyle,
+  AnimationStyleType,
   IconStyle,
   IconStyleType,
   heightCalculator,
@@ -29,33 +31,39 @@ import {
 import { useContext } from "react";
 import { EditorContext } from "comps/editorState";
 
-const Container = styled.div<{ $style: IconStyleType | undefined }>`
+const Container = styled.div<{
+  $style: IconStyleType | undefined;
+  $animationStyle:AnimationStyleType}>`
   display: flex;
   align-items: center;
   justify-content: center;
-
-  ${(props) => props.$style && css`
-    height: calc(100% - ${props.$style.margin});
-    width: calc(100% - ${props.$style.margin});
-    padding: ${props.$style.padding};
-    margin: ${props.$style.margin};
-    border: ${props.$style.borderWidth} solid ${props.$style.border};
-    border-radius: ${props.$style.radius};
-    background: ${props.$style.background};
-    svg {
-      max-width: ${widthCalculator(props.$style.margin)};
-      max-height: ${heightCalculator(props.$style.margin)};
-      color: ${props.$style.fill};
-      object-fit: contain;
-      pointer-events: auto;
-    }
-  `}
+  ${props=>props.$animationStyle}
+  ${(props) =>
+    props.$style &&
+    css`
+      height: calc(100% - ${props.$style.margin});
+      width: calc(100% - ${props.$style.margin});
+      padding: ${props.$style.padding};
+      margin: ${props.$style.margin};
+      border: ${props.$style.borderWidth} solid ${props.$style.border};
+      border-radius: ${props.$style.radius};
+      background: ${props.$style.background};
+      rotate:${props.$style.rotation};
+      svg {
+        max-width: ${widthCalculator(props.$style.margin)};
+        max-height: ${heightCalculator(props.$style.margin)};
+        color: ${props.$style.fill};
+        object-fit: contain;
+        pointer-events: auto;
+      }
+    `}
 `;
 
 const EventOptions = [clickEvent] as const;
 
 const childrenMap = {
-  style: styleControl(IconStyle),
+  style: styleControl(IconStyle,'style'),
+  animationStyle: styleControl(AnimationStyle,'animationStyle'),
   icon: withDefault(IconControl, "/icon:antd/homefilled"),
   autoHeight: withDefault(AutoHeightControl, "auto"),
   iconSize: withDefault(NumberControl, 20),
@@ -86,6 +94,7 @@ const IconView = (props: RecordConstructorToView<typeof childrenMap>) => {
         <Container
           ref={conRef}
           $style={props.style}
+          $animationStyle={props.animationStyle}
           style={{
             fontSize: props.autoHeight
               ? `${height < width ? height : width}px`
@@ -94,7 +103,7 @@ const IconView = (props: RecordConstructorToView<typeof childrenMap>) => {
           }}
           onClick={() => props.onEvent("click")}
         >
-          {props.icon}  
+          {props.icon}
         </Container>
       )}
     >
@@ -103,7 +112,8 @@ const IconView = (props: RecordConstructorToView<typeof childrenMap>) => {
 };
 
 let IconBasicComp = (function () {
-  return new UICompBuilder(childrenMap, (props) => <IconView {...props} />)
+  return new UICompBuilder(childrenMap, (props) => {
+    return(<IconView {...props} />)})
     .setPropertyViewFn((children) => (
       <>
         <Section name={sectionNames.basic}>
@@ -130,9 +140,14 @@ let IconBasicComp = (function () {
             children.iconSize.propertyView({
               label: trans("iconComp.iconSize"),
             })}
-          </Section><Section name={sectionNames.style}>
+          </Section>
+            <Section name={sectionNames.style}>
               {children.style.getPropertyView()}
-            </Section></>
+            </Section>
+            <Section name={sectionNames.animationStyle} hasTooltip={true}>
+              {children.animationStyle.getPropertyView()}
+            </Section>
+          </>
         )}
       </>
     ))

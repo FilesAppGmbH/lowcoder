@@ -59,6 +59,7 @@ import { blurMethod, focusMethod } from "comps/utils/methodUtils";
 import { useContext } from "react";
 import { EditorContext } from "comps/editorState";
 import { styleControl } from "comps/controls/styleControl";
+import SupaDemoDisplay from "comps/utils/supademoDisplay";
 
 export const getStyle = (
   style:
@@ -77,7 +78,9 @@ export const getStyle = (
     .ant-select-selection-search {	
       padding: ${style.padding};
     }	
-    .ant-select-selection-search-input {
+    .ant-select-selection-search-input,
+    .ant-select-selection-item,
+    .ant-select-selection-item .option-label {
       font-family:${(style as SelectStyleType).fontFamily} !important;
       text-transform:${(style as SelectStyleType).textTransform} !important;
       text-decoration:${(style as SelectStyleType).textDecoration} !important;
@@ -106,21 +109,22 @@ export const getStyle = (
       }
 
       .ant-select-selector {
-        background-color: ${style.background};
+        background: ${style.background};
         border-color: ${style.border};
         border-width:${(style as SelectStyleType).borderWidth};
+        box-shadow:${(style as SelectStyleType).boxShadow} ${(style as SelectStyleType).boxShadowColor};
       }
 
       &.ant-select-focused,
       &:hover {
         .ant-select-selector {
-          border-color: ${style.accent};
+          border-color: ${style.accent} !important;
         }
       }
 
       .ant-select-arrow,
       .ant-select-clear {
-        background-color: ${style.background};
+        // background: ${style.background};
         color: ${style.text === "#222222"
       ? "#8B8FA3"
       : isDarkColor(style.text)
@@ -138,7 +142,7 @@ export const getStyle = (
 
       &.ant-select-multiple .ant-select-selection-item {
         border: none;
-        background-color: ${(style as MultiSelectStyleType).tags};
+        background: ${(style as MultiSelectStyleType).tags};
         color: ${(style as MultiSelectStyleType).tagsText};
         border-radius: ${style.radius};
 
@@ -181,14 +185,13 @@ const getDropdownStyle = (style: MultiSelectStyleType) => {
   `;
 };
 
-const Select = styled(AntdSelect) <{ $style: SelectStyleType & MultiSelectStyleType }>`
+const Select = styled(AntdSelect) <{ $style: SelectStyleType & MultiSelectStyleType,$inputFieldStyle:SelectStyleType }>`
   width: 100%;
-
-  ${(props) => props.$style && getStyle(props.$style)}
+  ${(props) => props.$inputFieldStyle && getStyle(props.$inputFieldStyle)}
 `;
 
 const DropdownStyled = styled.div<{ $style: ChildrenMultiSelectStyleType }>`
- background-color: ${props => props.$style?.background};
+    background: ${props => props.$style?.background};
     border: ${props => props.$style?.border};
     border-style: ${props => props.$style?.borderStyle};
     border-width: ${props => props.$style?.borderWidth};
@@ -203,6 +206,7 @@ const DropdownStyled = styled.div<{ $style: ChildrenMultiSelectStyleType }>`
     font-weight: ${props => props.$style?.textWeight};
     text-transform: ${props => props.$style?.textTransform};
     color: ${props => props.$style?.text};
+    line-height: ${props => props.$style?.lineHeight};
   }
   .option-label{
     text-decoration: ${props => props.$style?.textDecoration} !important;
@@ -246,13 +250,17 @@ export const SelectUIView = (
     value: any;
     style: SelectStyleType | MultiSelectStyleType;
     childrenInputFieldStyle: ChildrenMultiSelectStyleType;
+    inputFieldStyle: SelectStyleType;
     onChange: (value: any) => void;
     dispatch: DispatchType;
+    autoFocus?: boolean;
   }
 ) => {
   return <Select
     ref={props.viewRef}
+    autoFocus={props.autoFocus}
     mode={props.mode}
+    $inputFieldStyle={props.inputFieldStyle}
     $style={props.style as SelectStyleType & MultiSelectStyleType}
     disabled={props.disabled}
     allowClear={props.allowClear}
@@ -361,7 +369,7 @@ export const SelectPropertyView = (
           <Section name={sectionNames.inputFieldStyle}>
             {children.inputFieldStyle.getPropertyView()}
           </Section>
-          <Section name={'Children Input Field Styles'}>
+          <Section name={sectionNames.childrenInputFieldStyle}>
             {children.childrenInputFieldStyle.getPropertyView()}
           </Section>
         </>

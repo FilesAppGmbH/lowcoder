@@ -11,6 +11,7 @@ import {
   ChartCompIconSmall,
   CheckboxCompIconSmall,
   CollapsibleContainerCompIconSmall,
+  ColumnLayoutCompIconSmall,
   CommentCompIconSmall,
   ContainerCompIconSmall,
   CustomCompIconSmall,
@@ -81,6 +82,8 @@ import {
   ColorPickerCompIconSmall,
   TransferCompIconSmall,
   ShapesCompIconSmall,
+  GanttCompIconSmall,
+  KanbanCompIconSmall,
 
   CandlestickChartCompIconSmall,
   FunnelChartCompIconSmall,
@@ -99,8 +102,7 @@ import {
   HillchartCompIconSmall,
   TurnstileCaptchaCompIconSmall,
   PivotTableCompIconSmall,
-  GraphChartCompIconSmall
-
+  GraphChartCompIconSmall,
 } from "lowcoder-design";
 
 export const CompStateIcon: {
@@ -115,6 +117,7 @@ export const CompStateIcon: {
   chart: <ChartCompIconSmall />,
   checkbox: <CheckboxCompIconSmall />,
   collapsibleContainer: <CollapsibleContainerCompIconSmall />,
+  columnLayout: <ColumnLayoutCompIconSmall />,
   comment: <CommentCompIconSmall />,
   container: <ContainerCompIconSmall />,
   controlButton: <IconButtonCompIconSmall />,
@@ -181,8 +184,10 @@ export const CompStateIcon: {
   treeSelect: <TreeSelectCompIconSmall />,
   video: <VideoCompIconSmall />,
   videocomponent: <VideoCameraStreamCompIconSmall />,
-  
+
   hillchart: <HillchartCompIconSmall/>,  
+  ganttChart: <GanttCompIconSmall/>,
+  kanban: <KanbanCompIconSmall/>,
   openLayersGeoMap: <GeoMapLayersCompIconSmall/>,  
   chartsGeoMap: <GeoMapChartsCompIconSmall/>,  
   bpmnEditor: <BPMNEditorCompIconSmall/>, 

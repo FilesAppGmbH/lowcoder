@@ -32,43 +32,79 @@ import faunaPlugin from "./fauna";
 import huggingFaceInferencePlugin from "./huggingFaceInference";
 import didPlugin from "./did";
 import bigQueryPlugin from "./bigQuery";
+import ossPlugin from "./aliyunOss";
 import appConfigPlugin from "./appconfig";
+import tursoPlugin from "./turso";
+import postmanEchoPlugin from "./postmanEcho";
+import lowcoderPlugin from "./lowcoder";
+import supabaseApiPlugin from "./supabaseApi";
+import firebirdsqlPlugin from "./firebirdsql";
+// import boomiPlugin from "./boomi";
 
 let plugins: (DataSourcePlugin | DataSourcePluginFactory)[] = [
-  s3Plugin,
-  openApiPlugin,
-  n8nPlugin,
+  
+  // Databases
   dynamoDBPlugin,
-  firebasePlugin,
   couchdbPlugin,
-  wooCommercePlugin,
-  openAiPlugin,
-  athenaPlugin,
   duckdbPlugin,
-  lambdaPlugin,
-  googleCloudStorage,
-  stripePlugin,
-  asanaPlugin,
-  circleCiPlugin,
-  frontPlugin,
-  githubPlugin,
+  faunaPlugin,
+  tursoPlugin,
+  firebirdsqlPlugin,
+
+  // Big Data
+  athenaPlugin,
+  bigQueryPlugin,
+
+  // AI
+  openAiPlugin,
   huggingFacePlugin,
   huggingFaceInferencePlugin,
-  jiraPlugin,
-  oneSignalPlugin,
+  didPlugin,
+
+  //DevOps
+  appConfigPlugin,
+  datadogPlugin,
+  circleCiPlugin,
+
+  // App Development
+  openApiPlugin,
+  postmanEchoPlugin,
+  lowcoderPlugin,
+  githubPlugin,
+  gitlabPlugin,
+  lambdaPlugin,
+  firebasePlugin,
+  supabaseApiPlugin,
+  
+  // Workflow
+  n8nPlugin,
+  // boomiPlugin,
+
+  // Messaging
+  twilioPlugin,
   sendGridPlugin,
-  shopifyPlugin,
-  slackPlugin,
+  oneSignalPlugin,
+  
+  // Assets
+  s3Plugin,
+  googleCloudStorage,
   supabasePlugin,
   cloudinaryPlugin,
+  ossPlugin,
+  
+  // Project Management
+  asanaPlugin,
+  jiraPlugin,
   notionPlugin,
-  datadogPlugin,
-  twilioPlugin,
-  gitlabPlugin,
-  faunaPlugin,
-  didPlugin,
-  bigQueryPlugin,
-  appConfigPlugin
+  slackPlugin,
+
+  // CRM
+  frontPlugin,
+
+  // E-commerce
+  stripePlugin,
+  shopifyPlugin,
+  wooCommercePlugin,
 ];
 
 try {

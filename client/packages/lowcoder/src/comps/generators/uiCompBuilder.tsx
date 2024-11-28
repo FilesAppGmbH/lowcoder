@@ -1,5 +1,5 @@
 import { BoolCodeControl, StringControl } from "comps/controls/codeControl";
-import React, { ReactNode, useContext, useRef } from "react";
+import React, { ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { ExternalEditorContext } from "util/context/ExternalEditorContext";
 import { Comp, CompParams, MultiBaseComp } from "lowcoder-core";
 import {
@@ -22,20 +22,32 @@ import {
   MethodConfigsType,
   withMethodExposing,
 } from "./withMethodExposing";
-import { Section } from "lowcoder-design";
+import {Section, controlItem } from "lowcoder-design";
 import { trans } from "i18n";
+import { BoolControl } from "../controls/boolControl";
+import { valueComp, withDefault } from "./simpleGenerators";
+import { getPromiseAfterDispatch } from "@lowcoder-ee/util/promiseUtils";
+import { EditorContext } from "../editorState";
+import { isEqual, values } from "lodash";
+import { UICompType, uiCompRegistry } from "../uiCompRegistry";
+import { getNpmPackageMeta } from "../utils/remote";
+import { compPluginsList } from "constants/compPluginConstants";
+import Select from "antd/es/select";
+import { useMergeCompStyles } from "@lowcoder-ee/util/hooks";
 
 export type NewChildren<ChildrenCompMap extends Record<string, Comp<unknown>>> =
   ChildrenCompMap & {
     hidden: InstanceType<typeof BoolCodeControl>;
     className: InstanceType<typeof StringControl>;
     dataTestId: InstanceType<typeof StringControl>;
+    preventStyleOverwriting: InstanceType<typeof BoolControl>;
+    version: InstanceType<typeof StringControl>;
   };
 
-export function HidableView(props: {
+export const HidableView = React.memo((props: {
   children: JSX.Element | React.ReactNode;
   hidden: boolean;
-}) {
+}) => {
   const { readOnly } = useContext(ExternalEditorContext);
   if (readOnly) {
     return <>{props.children}</>;
@@ -52,25 +64,72 @@ export function HidableView(props: {
       </>
     );
   }
-}
+})
 
-export function ExtendedPropertyView<
+export const ExtendedPropertyView = React.memo(<
   ChildrenCompMap extends Record<string, Comp<unknown>>,
 >(props: {
   children: JSX.Element | React.ReactNode,
   childrenMap: NewChildren<ChildrenCompMap>
 }
-) {
+) => {
+  const [compVersions, setCompVersions] = useState(['latest']);
+  const [compName, setCompName] = useState('');
+  const editorState = useContext(EditorContext);
+  const selectedComp = values(editorState?.selectedComps())[0];
+  const compType = selectedComp?.children?.compType?.getView() as UICompType;
+  
+  useEffect(() => {
+    setCompName(uiCompRegistry[compType]?.compName || '');
+  }, [compType]);
+
+  useEffect(() => {
+    const fetchCompsPackageMeta = async () => {
+      const packageMeta = await getNpmPackageMeta(compName);
+      if (packageMeta?.versions) {
+        setCompVersions(Object.keys(packageMeta.versions).reverse())
+      }
+    }
+    if (Boolean(compName) && compPluginsList.includes(compName)) {
+      fetchCompsPackageMeta();
+    }
+  }, [compName]);
+
   return (
     <>
       {props.children}
       <Section name={trans("prop.component")}>
         {props.childrenMap.className?.propertyView({ label: trans("prop.className") })}
         {props.childrenMap.dataTestId?.propertyView({ label: trans("prop.dataTestId") })}
+        {props.childrenMap.preventStyleOverwriting?.propertyView({ label: trans("prop.preventOverwriting") })}
       </Section>
+      {compPluginsList.includes(compName) && (
+        <Section name={'Component Version'}>
+          {controlItem({}, (
+            <Select
+              defaultValue={props.childrenMap.version.getView()}
+              placeholder={'Select version'}
+              options={
+                compVersions.map(version => ({label: version, value: version}))
+              }
+              onChange={async (value) => {
+                await getPromiseAfterDispatch(
+                  props.childrenMap.version.dispatch,
+                  props.childrenMap.version.changeValueAction(value), {
+                    autoHandleAfterReduce: true,
+                  }
+                )
+                setTimeout(() => {
+                  window.location.reload();
+                }, 1000);
+              }}
+            />
+          ))}
+        </Section>
+      )}
     </>
   );
-}
+});
 
 export function uiChildren<
   ChildrenCompMap extends Record<string, Comp<unknown>>,
@@ -81,7 +140,10 @@ export function uiChildren<
     ...childrenMap,
     hidden: BoolCodeControl,
     className: StringControl,
-    dataTestId: StringControl
+    dataTestId: StringControl,
+    preventStyleOverwriting: withDefault(BoolControl, false),
+    appliedThemeId: valueComp<string>(''),
+    version: withDefault(StringControl, 'latest'),
   } as any;
 }
 
@@ -149,7 +211,7 @@ export class UICompBuilder<
   }
 
   build() {
-    const reservedProps = ["hidden", "className", "dataTestId"];
+    const reservedProps = ["hidden", "className", "dataTestId", "preventStyleOverwriting", "appliedThemeId"];
     for (const reservedProp of reservedProps) {
       if (this.childrenMap.hasOwnProperty(reservedProp)) {
         throw new Error(`Property »${reservedProp}« is reserved and must not be implemented in components!`);
@@ -213,28 +275,125 @@ export const DisabledContext = React.createContext<boolean>(false);
 /**
  * Guaranteed to be in a react component, so that react hooks can be used internally
  */
-function UIView(props: {
+const UIView = React.memo((props: {
   innerRef: React.RefObject<HTMLDivElement>;
   comp: any;
   viewFn: any;
-}) {
+}) => {
   const comp = props.comp;
-
   const childrenProps = childrenToProps(comp.children);
+  const childrenJsonProps = comp.toJsonValue();
   const parentDisabled = useContext(DisabledContext);
-  const disabled = childrenProps["disabled"];
-  if (disabled !== undefined && typeof disabled === "boolean") {
-    childrenProps["disabled"] = disabled || parentDisabled;
+  const disabled = childrenProps['disabled'];
+  if (disabled !== undefined && typeof disabled === 'boolean') {
+    childrenProps['disabled'] = disabled || parentDisabled;
   }
 
-  //ADDED BY FRED
-  if (childrenProps.events) {
-    const events = childrenProps.events as { value?: any[] };
-    if (!events.value || events.value.length === 0) {
-      events.value = [];
+  useMergeCompStyles(
+    childrenProps as Record<string, any>,
+    comp.dispatch
+  );
+
+  const defaultChildren = useMemo(() => comp.children, [comp.children]);
+  const isNotContainer = useMemo(() => Boolean(defaultChildren.style), [defaultChildren.style]);
+  const restrictPaddingOnRotation = useMemo(() => Boolean(defaultChildren.restrictPaddingOnRotation), [defaultChildren.restrictPaddingOnRotation]);
+  const rotationVal = useMemo(() => {
+    if (isNotContainer) {
+      return defaultChildren.style?.children?.rotation?.valueAndMsg.value
     }
+    return null;
+  }, [isNotContainer, defaultChildren.style?.children?.rotation?.valueAndMsg.value]);
+  const boxShadowVal = useMemo(() => {
+    if (isNotContainer) {
+      return defaultChildren.style?.children?.boxShadow?.valueAndMsg?.value;
+    }
+    return null;
+  }, [isNotContainer, defaultChildren.style?.children?.boxShadow?.valueAndMsg?.value]);
+  const restrictPaddingOnRotationVal = useMemo(() => {
+    if (isNotContainer) {
+      return defaultChildren?.restrictPaddingOnRotation?.valueAndMsg?.value
+    }
+    return null;
+  }, [isNotContainer, defaultChildren?.restrictPaddingOnRotation?.valueAndMsg?.value]);
+
+  const getPadding = useCallback(() => {
+    if (
+      (rotationVal === null ||
+        rotationVal === undefined ||
+        restrictPaddingOnRotation) &&
+      (boxShadowVal === null ||
+        boxShadowVal === undefined ||
+        boxShadowVal === '0px')
+    ) {
+      if (restrictPaddingOnRotationVal === 'qrCode') {
+        if (rotationVal !== '' && rotationVal !== '0deg') {
+          return '35% 0px';
+        } else {
+          return '0px';
+        }
+      } else if (restrictPaddingOnRotationVal === 'image') {
+        if (rotationVal !== '' && rotationVal !== '0deg') {
+          return '10% 0px';
+        } else {
+          return '0px';
+        }
+      } else if (restrictPaddingOnRotationVal === 'controlButton') {
+        if (rotationVal !== '' && rotationVal !== '0deg') {
+          return '10% 0px';
+        } else {
+          return '0px';
+        }
+      } else {
+        return '0px'; // Both rotation and box-shadow are empty or restricted
+      }
+    }else if (
+      rotationVal === null ||
+      rotationVal === undefined ||
+      rotationVal === '0px'
+    ){return '0px'} else if (rotationVal !== '' && rotationVal !== '0deg') {
+      // Rotation applied
+      if (
+        boxShadowVal === null ||
+        boxShadowVal === undefined ||
+        boxShadowVal === '0px'
+      ) {
+        return `calc(min(50%, ${Math.abs(rotationVal.replace('deg', '')) / 90} * 100%)) 0px`;
+      } else if (boxShadowVal !== '' && boxShadowVal !== '0px') {
+        // Both rotation and box-shadow applied
+        return `calc(min(50%, ${Math.abs(rotationVal.replace('deg', '') + parseFloat(boxShadowVal.replace('px', ''))) / 90} * 100%)) 0px`;
+      } else {
+        return `calc(min(50%, ${Math.abs(rotationVal.replace('deg', '')) / 90} * 100%)) 0px`; // Only rotation applied
+      }
+    } else if (
+      boxShadowVal === null ||
+      boxShadowVal === undefined ||
+      boxShadowVal === '0px'
+    ) {
+      return '0px';
+    } else if (boxShadowVal !== '' && boxShadowVal !== '0px') {
+      // Box-shadow applied
+      return `calc(min(50%, ${Math.abs(parseFloat(boxShadowVal.replace('px', ''))) / 90} * 100%)) 0px`;
+    } else {
+      return '0px'; // Default value if neither rotation nor box-shadow is applied
+    }
+  }, [
+    rotationVal,
+    boxShadowVal,
+    restrictPaddingOnRotationVal,
+    restrictPaddingOnRotation,
+  ]);
+
+  // render condition for modal and drawer as we are not getting compType here
+  if (comp.children.hasOwnProperty('showMask') && comp.children.hasOwnProperty('maskClosable')) {
+    return (
+      <HidableView hidden={childrenProps.hidden as boolean}>
+        {props.viewFn(
+          childrenProps,
+          comp.dispatch
+        )}
+      </HidableView>
+    );
   }
-  //END ADD BY FRED
 
   return (
     <div
@@ -242,17 +401,17 @@ function UIView(props: {
       className={childrenProps.className as string}
       data-testid={childrenProps.dataTestId as string}
       style={{
-        width: "100%",
-        height: "100%",
-        margin: "0px",
-        padding: "0px",
-      }}>
+        width: '100%',
+        height: '100%',
+        margin: '0px',
+        padding: getPadding(),
+      }}
+    >
       <HidableView hidden={childrenProps.hidden as boolean}>
-        {props.viewFn(
-          childrenProps,
-          comp.dispatch
-        )}
+        {props.viewFn(childrenProps, comp.dispatch)}
       </HidableView>
     </div>
   );
-}
+}, (prevProps, nextProps) => {
+  return isEqual(prevProps, nextProps);
+});

@@ -3,6 +3,7 @@ package org.lowcoder.domain.application.service;
 
 import static org.lowcoder.domain.application.ApplicationUtil.getDependentModulesFromDsl;
 
+import java.time.Instant;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -15,6 +16,7 @@ import org.lowcoder.domain.application.repository.ApplicationRepository;
 import org.lowcoder.domain.organization.repository.OrganizationRepository;
 import org.lowcoder.domain.organization.service.OrgMemberService;
 import org.lowcoder.domain.permission.model.ResourceRole;
+import org.lowcoder.domain.permission.model.ResourceType;
 import org.lowcoder.domain.permission.service.ResourcePermissionService;
 import org.lowcoder.domain.user.repository.UserRepository;
 import org.lowcoder.domain.user.service.UserService;
@@ -60,6 +62,8 @@ public class ApplicationServiceImpl implements ApplicationService {
             return Mono.error(new BizException(BizError.INVALID_PARAMETER, "INVALID_PARAMETER", FieldName.ID));
         }
 
+        if(FieldName.isGID(id))
+            return Mono.from(repository.findByGid(id)).switchIfEmpty(Mono.error(new BizException(BizError.NO_RESOURCE_FOUND, "CANT_FIND_APPLICATION", id)));
         return repository.findById(id)
                 .switchIfEmpty(Mono.error(new BizException(BizError.NO_RESOURCE_FOUND, "CANT_FIND_APPLICATION", id)));
     }
@@ -91,9 +95,19 @@ public class ApplicationServiceImpl implements ApplicationService {
     }
 
     @Override
+    public Mono<Boolean> updateEditState(String applicationId, Boolean editingFinished) {
+        return findById(applicationId)
+                .flatMap(newApplication -> {
+                    Application application = Application.builder().editingUserId("").build();
+                    if(editingFinished) return mongoUpsertHelper.updateById(application, applicationId);
+                    return Mono.just(true);
+                });
+    }
+
+    @Override
     public Mono<Application> create(Application newApplication, String visitorId) {
         return repository.save(newApplication)
-                .delayUntil(app -> resourcePermissionService.addApplicationPermissionToUser(app.getId(), visitorId, ResourceRole.OWNER));
+                .delayUntil(app -> resourcePermissionService.addResourcePermissionToUser(app.getId(), visitorId, ResourceRole.OWNER, ResourceType.APPLICATION));
     }
 
     /**
@@ -126,6 +140,8 @@ public class ApplicationServiceImpl implements ApplicationService {
 
     @Override
     public Flux<Application> findByIdIn(List<String> applicationIds) {
+        if(!applicationIds.isEmpty() && FieldName.isGID(applicationIds.get(0)))
+            return repository.findByGidIn(applicationIds);
         return repository.findByIdIn(applicationIds);
     }
 
@@ -255,10 +271,14 @@ public class ApplicationServiceImpl implements ApplicationService {
     @NonEmptyMono
     @SuppressWarnings("ReactiveStreamsNullableInLambdaInTransform")
     public Mono<Set<String>> getPublicApplicationIds(Collection<String> applicationIds) {
+        if(!applicationIds.isEmpty() && FieldName.isGID(applicationIds.stream().findFirst().get()))
+            return repository.findByPublicToAllIsTrueAndGidIn(applicationIds)
+                    .map(Application::getGid)
+                    .collect(Collectors.toSet());
 
         return repository.findByPublicToAllIsTrueAndIdIn(applicationIds)
-                        .map(HasIdAndAuditing::getId)
-                        .collect(Collectors.toSet());
+                .map(HasIdAndAuditing::getId)
+                .collect(Collectors.toSet());
     }
 
 
@@ -271,13 +291,14 @@ public class ApplicationServiceImpl implements ApplicationService {
     public Mono<Set<String>> getPrivateApplicationIds(Collection<String> applicationIds, String userId) {
 
     	// TODO: in 2.4.0 we need to check whether the app was published or not
-        return repository.findByCreatedByAndIdIn(userId, applicationIds)
-                        .map(HasIdAndAuditing::getId)
-                        .collect(Collectors.toSet());
+        if(!applicationIds.isEmpty() && FieldName.isGID(applicationIds.stream().findFirst().get()))
+            return repository.findByCreatedByAndGidIn(userId, applicationIds)
+                    .map(Application::getGid)
+                    .collect(Collectors.toSet());
 
-//        return repository.findByIdIn(applicationIds)
-//                        .map(HasIdAndAuditing::getId)
-//                        .collect(Collectors.toSet());
+        return repository.findByCreatedByAndIdIn(userId, applicationIds)
+                .map(HasIdAndAuditing::getId)
+                .collect(Collectors.toSet());
     }
     
     
@@ -291,6 +312,11 @@ public class ApplicationServiceImpl implements ApplicationService {
 
     	if ((isAnonymous && !isPrivateMarketplace) || !isAnonymous)
     	{
+            if(!applicationIds.isEmpty() && FieldName.isGID(applicationIds.stream().findFirst().get()))
+                return repository.findByPublicToAllIsTrueAndPublicToMarketplaceIsTrueAndGidIn(applicationIds)
+                        .map(Application::getGid)
+                        .collect(Collectors.toSet());
+
             return repository.findByPublicToAllIsTrueAndPublicToMarketplaceIsTrueAndIdIn(applicationIds)
                     .map(HasIdAndAuditing::getId)
                     .collect(Collectors.toSet());
@@ -306,6 +332,11 @@ public class ApplicationServiceImpl implements ApplicationService {
     @SuppressWarnings("ReactiveStreamsNullableInLambdaInTransform")
     public Mono<Set<String>> getPublicAgencyApplicationIds(Collection<String> applicationIds) {
 
+        if(!applicationIds.isEmpty() && FieldName.isGID(applicationIds.stream().findFirst().get()))
+            return repository.findByPublicToAllIsTrueAndAgencyProfileIsTrueAndGidIn(applicationIds)
+                    .map(Application::getGid)
+                    .collect(Collectors.toSet());
+
         return repository.findByPublicToAllIsTrueAndAgencyProfileIsTrueAndIdIn(applicationIds)
                 .map(HasIdAndAuditing::getId)
                 .collect(Collectors.toSet());
@@ -314,5 +345,14 @@ public class ApplicationServiceImpl implements ApplicationService {
     @Override
     public Flux<Application> findAll() {
         return repository.findAll();
+    }
+
+    @Override
+    public Mono<Boolean> updateLastEditedAt(String applicationId, Instant time, String visitorId) {
+        return repository.findByIdIn(List.of(applicationId))
+                .doOnNext(application -> application.setLastEditedAt(time))
+                .doOnNext(application -> application.setEditingUserId(visitorId))
+                .flatMap(repository::save)
+                .hasElements();
     }
 }

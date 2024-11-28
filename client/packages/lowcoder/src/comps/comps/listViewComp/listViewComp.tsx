@@ -7,7 +7,7 @@ import {
   StringControl,
 } from "comps/controls/codeControl";
 import { styleControl } from "comps/controls/styleControl";
-import { ListViewStyle } from "comps/controls/styleControlConstants";
+import { AnimationStyle, ListViewStyle } from "comps/controls/styleControlConstants";
 import { UICompBuilder, stateComp, valueComp, withDefault, withPropertyViewFn, withViewFn } from "comps/generators";
 import {
   CompDepsConfig,
@@ -39,6 +39,7 @@ import { ListView } from "./listView";
 import { listPropertyView } from "./listViewPropertyView";
 import { getData } from "./listViewUtils";
 import { withMethodExposing } from "comps/generators/withMethodExposing";
+import SliderControl from "@lowcoder-ee/comps/controls/sliderControl";
 
 const childrenMap = {
   noOfRows: withIsLoadingMethod(NumberOrJSONObjectArrayControl), // FIXME: migrate "noOfRows" to "data"
@@ -49,10 +50,14 @@ const childrenMap = {
   heightUnitOfRow: withDefault(NumberControl, 1),
   container: ContextContainerComp,
   autoHeight: AutoHeightControl,
+  showVerticalScrollbar: withDefault(BoolControl, false),
+  showHorizontalScrollbar: withDefault(BoolControl, false),
+  horizontalGridCells: SliderControl,
   scrollbars: withDefault(BoolControl, false),
   showBorder: BoolControl,
   pagination: withDefault(PaginationControl, { pageSize: "6" }),
-  style: styleControl(ListViewStyle),
+  style: styleControl(ListViewStyle, 'style'),
+  animationStyle: styleControl(AnimationStyle, 'animationStyle'),
   horizontal: withDefault(BoolControl, false),
   minHorizontalWidth: withDefault(RadiusControl, '100px'),
 };

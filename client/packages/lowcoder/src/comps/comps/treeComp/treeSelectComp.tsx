@@ -65,9 +65,9 @@ const childrenMap = {
   allowClear: BoolControl,
   showSearch: BoolControl.DEFAULT_TRUE,
   inputValue: stateComp<string>(""), // search value
-  style: withDefault(styleControl(InputFieldStyle), {borderWidth: '1px'}),
-  labelStyle:styleControl(LabelStyle),
-  inputFieldStyle: withDefault(styleControl(TreeSelectStyle), {borderWidth: '1px'}),
+  style:styleControl(InputFieldStyle , 'style'),
+  labelStyle:styleControl(LabelStyle  , 'labelStyle'),
+  inputFieldStyle: styleControl(TreeSelectStyle, 'inputFieldStyle'),
   viewRef: RefControl<BaseSelectRef>,
 };
 
@@ -141,13 +141,15 @@ const TreeCompView = (
         onBlur={() => props.onEvent("blur")}
       />
     ),
+    showValidationWhenEmpty: props.showValidationWhenEmpty,
   });
 };
 
 let TreeBasicComp = (function () {
-  return new UICompBuilder(childrenMap, (props, dispatch) => (
+  return new UICompBuilder(childrenMap, (props, dispatch) => {
+    return(
     <TreeCompView {...props} dispatch={dispatch} />
-  ))
+  )})
     .setPropertyViewFn((children) => (
       <>
         <Section name={sectionNames.basic}>

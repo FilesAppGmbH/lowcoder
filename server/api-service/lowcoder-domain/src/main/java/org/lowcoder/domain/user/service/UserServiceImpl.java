@@ -49,6 +49,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static com.google.common.collect.Sets.newHashSet;
+import static org.lowcoder.domain.organization.service.OrganizationServiceImpl.PASSWORD_RESET_EMAIL_TEMPLATE_DEFAULT;
 import static org.lowcoder.domain.user.model.UserDetail.ANONYMOUS_CURRENT_USER;
 import static org.lowcoder.sdk.constants.GlobalContext.CLIENT_IP;
 import static org.lowcoder.sdk.util.ExceptionUtils.ofError;
@@ -112,6 +113,12 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public Mono<User> findByEmailDeep(String email) {
+        if(StringUtils.isEmpty(email)) return Mono.empty();
+        return repository.findByEmailOrConnections_Email(email, email).next();
+    }
+
+    @Override
     public Mono<Boolean> saveProfilePhoto(Part filePart, User user) {
         String prevAvatar = ObjectUtils.defaultIfNull(user.getAvatar(), "");
         Mono<Asset> newAvatarMono = assetService.upload(filePart, avatarMaxSizeInKb.get(), true);
@@ -150,14 +157,16 @@ public class UserServiceImpl implements UserService {
 
     @Override
     public Mono<User> findByAuthUserRawId(AuthUser authUser) {
-        return findByName(authUser.getUsername());
+        return findByEmailDeep(authUser.getEmail());
     }
 
     @Override
-    public Mono<User> createNewUserByAuthUser(AuthUser authUser) {
+    public Mono<User> createNewUserByAuthUser(AuthUser authUser, boolean isSuperAdmin) {
          User.UserBuilder userBuilder = User.builder()
                 .name(authUser.getUsername())
+                .email(authUser.getEmail())
                 .state(UserState.ACTIVATED)
+                .superAdmin(isSuperAdmin)
                 .isEnabled(true)
                 .tpAvatarLink(authUser.getAvatar());
 
@@ -171,6 +180,7 @@ public class UserServiceImpl implements UserService {
         Connection connection = authUser.toAuthConnection();
         connections.add(connection);
         newUser.setConnections(connections);
+        newUser.setActiveAuthId(connection.getAuthId());
         newUser.setIsNewUser(true);
         return create(newUser);
     }
@@ -200,21 +210,24 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public Mono<Boolean> addNewConnection(String userId, Connection connection) {
-        return findById(userId)
-                .doOnNext(user -> user.getConnections().add(connection))
-                .flatMap(repository::save)
-                .then(Mono.just(true));
-    }
-
-    @Override
-    public Mono<User> addNewConnectionAndReturnUser(String userId, Connection connection) {
+    public Mono<User> addNewConnectionAndReturnUser(String userId, AuthUser authUser) {
+        Connection connection = authUser.toAuthConnection();
         return findById(userId)
                 .doOnNext(user -> {
                     user.getConnections().add(connection);
                     user.setActiveAuthId(connection.getAuthId());
+
+                    if (AuthSourceConstants.EMAIL.equals(authUser.getSource())
+                            && authUser.getAuthContext() instanceof FormAuthRequestContext formAuthRequestContext) {
+                        user.setPassword(encryptionService.encryptPassword(formAuthRequestContext.getPassword()));
+                    }
                 })
                 .flatMap(repository::save);
+    }
+
+    @Override
+    public Mono<User> saveUser(User user) {
+        return repository.save(user);
     }
 
     @Override
@@ -267,7 +280,7 @@ public class UserServiceImpl implements UserService {
         return findByName(userEmail)
                 .zipWhen(user -> orgMemberService.getCurrentOrgMember(user.getId())
                 .flatMap(orgMember -> organizationService.getById(orgMember.getOrgId()))
-                .map(organization -> organization.getCommonSettings().get("PASSWORD_RESET_EMAIL_TEMPLATE")))
+                .map(organization -> organization.getCommonSettings().getOrDefault(PASSWORD_RESET_EMAIL_TEMPLATE_DEFAULT, PASSWORD_RESET_EMAIL_TEMPLATE_DEFAULT)))
                 .flatMap(tuple -> {
                     User user = tuple.getT1();
                     String emailTemplate = (String)tuple.getT2();
@@ -323,6 +336,16 @@ public class UserServiceImpl implements UserService {
                 .thenReturn(true);
     }
 
+    @Override
+    public Mono<Boolean> markAsSuperAdmin(String userId) {
+        return findById(userId)
+                .map(user -> {
+                    user.setSuperAdmin(true);
+                    return user;
+                })
+                .flatMap(repository::save)
+                .thenReturn(true);
+    }
 
     @Override
     public Mono<UserDetail> buildUserDetail(User user, boolean withoutDynamicGroups) {
@@ -339,7 +362,7 @@ public class UserServiceImpl implements UserService {
                         List<Map<String, String>> groups = tuple2.getT2();
                         return UserDetail.builder()
                                 .id(user.getId())
-                                .name(user.getName())
+                                .name(StringUtils.isEmpty(user.getName())?user.getId():user.getName())
                                 .avatarUrl(user.getAvatarUrl())
                                 .uiLanguage(user.getUiLanguage())
                                 .email(convertEmail(user.getConnections()))

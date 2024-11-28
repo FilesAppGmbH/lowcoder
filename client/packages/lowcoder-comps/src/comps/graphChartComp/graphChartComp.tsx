@@ -25,7 +25,7 @@ import {
   chartColorPalette,
   getPromiseAfterDispatch,
   dropdownControl,
-  JSONObject
+  JSONObject,
 } from "lowcoder-sdk";
 import { getEchartsLocale, trans } from "i18n/comps";
 import { ItemColorComp } from "comps/chartComp/chartConfigs/lineChartConfig";
@@ -145,7 +145,8 @@ GraphChartTmpComp = withViewFn(GraphChartTmpComp, (comp) => {
   const option = useMemo(() => {
     return getEchartsConfig(
       childrenToProps(echartsConfigChildren) as ToViewReturn<typeof echartsConfigChildren>,
-      chartSize
+      chartSize,
+      theme?.theme?.components?.candleStickChart || {},
     );
   }, [chartSize, ...Object.values(echartsConfigChildren)]);
 

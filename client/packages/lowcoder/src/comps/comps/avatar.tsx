@@ -32,7 +32,7 @@ import { stringExposingStateControl } from "../controls/codeStateControl";
 import { BoolControl } from "../controls/boolControl";
 import { BadgeBasicSection, badgeChildren } from "./badgeComp/badgeConstants";
 import { DropdownOptionControl } from "../controls/optionsControl";
-import { ReactElement, useContext } from "react";
+import { ReactElement, useContext, useEffect } from "react";
 import { CompNameContext, EditorContext } from "../editorState";
 
 const AvatarWrapper = styled(Avatar) <AvatarProps & { $cursorPointer?: boolean, $style: AvatarStyleType }>`
@@ -74,7 +74,6 @@ white-space: nowrap;
 font-weight: ${props=>props.$style.textWeight};
 border-radius: ${props=>props.$style.radius};
 font-size: ${props=>props.$style.textSize};
-rotate: ${props=>props.$style.rotation};
 text-transform: ${props=>props.$style.textTransform};
 color: ${props=>props.$style.text};
 border: ${props => props.$style.border};
@@ -95,7 +94,6 @@ white-space: nowrap;
 font-weight: ${props=>props.$style.textWeight};
 border-radius: ${props=>props.$style.radius};
 font-size: ${props=>props.$style.textSize};
-rotate: ${props=>props.$style.rotation};
 text-transform: ${props=>props.$style.textTransform};
 color: ${props=>props.$style.text};
 border: ${props => props.$style.border};
@@ -120,10 +118,10 @@ const sideOptions = [
 ] as const;
 
 const childrenMap = {
-  style: styleControl(avatarContainerStyle),
-  avatarStyle: styleControl(AvatarStyle),
-  labelStyle: styleControl(avatarLabelStyle),
-  captionStyle: styleControl(avatarLabelStyle),
+  style: styleControl(avatarContainerStyle , 'style'),
+  avatarStyle: styleControl(AvatarStyle , 'avatarStyle'),
+  labelStyle: styleControl(avatarLabelStyle , 'labelStyle'),
+  captionStyle: styleControl(avatarLabelStyle , 'captionStyle'),
   icon: withDefault(IconControl, "/icon:solid/user"),
   iconSize: withDefault(NumberControl, 40),
   onEvent: eventHandlerControl(EventOptions),
@@ -199,7 +197,8 @@ const AvatarView = (props: RecordConstructorToView<typeof childrenMap>) => {
 };
 
 let AvatarBasicComp = (function () {
-  return new UICompBuilder(childrenMap, (props) => <AvatarView {...props} />)
+  return new UICompBuilder(childrenMap, (props) => {
+    return(<AvatarView {...props} />)})
     .setPropertyViewFn((children) => (
       <>
         <Section name={sectionNames.basic}>

@@ -24,7 +24,7 @@ import {
   ThemeContext,
   chartColorPalette,
   getPromiseAfterDispatch,
-  dropdownControl
+  dropdownControl,
 } from "lowcoder-sdk";
 import { getEchartsLocale, trans } from "i18n/comps";
 import { ItemColorComp } from "comps/chartComp/chartConfigs/lineChartConfig";
@@ -63,7 +63,6 @@ CandleStickChartTmpComp = withViewFn(CandleStickChartTmpComp, (comp) => {
     color: chartColorPalette,
     backgroundColor: "#fff",
   };
-
   let themeConfig = defaultChartTheme;
   try {
     themeConfig = theme?.theme.chart ? JSON.parse(theme?.theme.chart) : defaultChartTheme;
@@ -144,7 +143,8 @@ CandleStickChartTmpComp = withViewFn(CandleStickChartTmpComp, (comp) => {
   const option = useMemo(() => {
     return getEchartsConfig(
       childrenToProps(echartsConfigChildren) as ToViewReturn<typeof echartsConfigChildren>,
-      chartSize
+      chartSize,
+      theme?.theme?.components?.candleStickChart || {},
     );
   }, [chartSize, ...Object.values(echartsConfigChildren)]);
 

@@ -1,5 +1,6 @@
 package org.lowcoder.api.application;
 
+import com.github.f4b6a3.uuid.UuidCreator;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import jakarta.annotation.Nonnull;
@@ -20,10 +21,8 @@ import org.lowcoder.api.home.UserHomeApiService;
 import org.lowcoder.api.permission.PermissionHelper;
 import org.lowcoder.api.permission.view.PermissionItemView;
 import org.lowcoder.api.usermanagement.OrgDevChecker;
-import org.lowcoder.domain.application.model.Application;
-import org.lowcoder.domain.application.model.ApplicationRequestType;
-import org.lowcoder.domain.application.model.ApplicationStatus;
-import org.lowcoder.domain.application.model.ApplicationType;
+import org.lowcoder.domain.application.model.*;
+import org.lowcoder.domain.application.service.ApplicationHistorySnapshotService;
 import org.lowcoder.domain.application.service.ApplicationService;
 import org.lowcoder.domain.datasource.model.Datasource;
 import org.lowcoder.domain.datasource.service.DatasourceService;
@@ -44,11 +43,13 @@ import org.lowcoder.sdk.exception.BizError;
 import org.lowcoder.sdk.exception.BizException;
 import org.lowcoder.sdk.plugin.common.QueryExecutor;
 import org.lowcoder.sdk.util.ExceptionUtils;
-import org.springframework.context.annotation.Lazy;
+import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.HashSet;
 import java.util.List;
@@ -59,8 +60,7 @@ import java.util.stream.Collectors;
 import static org.lowcoder.domain.application.model.ApplicationStatus.NORMAL;
 import static org.lowcoder.domain.permission.model.ResourceAction.*;
 import static org.lowcoder.sdk.exception.BizError.*;
-import static org.lowcoder.sdk.util.ExceptionUtils.deferredError;
-import static org.lowcoder.sdk.util.ExceptionUtils.ofError;
+import static org.lowcoder.sdk.util.ExceptionUtils.*;
 
 @RequiredArgsConstructor
 @Service
@@ -90,17 +90,19 @@ public class ApplicationApiServiceImpl implements ApplicationApiService {
     private final TemplateService templateService;
     private final PermissionHelper permissionHelper;
     private final DatasourceService datasourceService;
+    private final ApplicationHistorySnapshotService applicationHistorySnapshotService;
 
     @Override
     public Mono<ApplicationView> create(CreateApplicationRequest createApplicationRequest) {
 
         Application application = new Application(createApplicationRequest.organizationId(),
+                UuidCreator.getTimeOrderedEpoch().toString(),
                 createApplicationRequest.name(),
                 createApplicationRequest.applicationType(),
                 NORMAL,
                 createApplicationRequest.publishedApplicationDSL(),
                 createApplicationRequest.editingApplicationDSL(),
-                false, false, false);
+                false, false, false, "", Instant.now());
 
         if (StringUtils.isBlank(application.getOrganizationId())) {
             return deferredError(INVALID_PARAMETER, "ORG_ID_EMPTY");
@@ -167,8 +169,8 @@ public class ApplicationApiServiceImpl implements ApplicationApiService {
     }
 
     @Override
-    public Flux<ApplicationInfoView> getRecycledApplications() {
-        return userHomeApiService.getAllAuthorisedApplications4CurrentOrgMember(null, ApplicationStatus.RECYCLED, false);
+    public Flux<ApplicationInfoView> getRecycledApplications(String name) {
+        return userHomeApiService.getAllAuthorisedApplications4CurrentOrgMember(null, ApplicationStatus.RECYCLED, false, name);
     }
 
     private Mono<Void> checkCurrentUserApplicationPermission(String applicationId, ResourceAction action) {
@@ -244,24 +246,31 @@ public class ApplicationApiServiceImpl implements ApplicationApiService {
 
     @Override
     public Mono<ApplicationView> getEditingApplication(String applicationId) {
-        return checkPermissionWithReadableErrorMsg(applicationId, EDIT_APPLICATIONS)
+        return applicationService.findById(applicationId).filter(application -> application.isPublicToAll() && application.isPublicToMarketplace())
+                .map(application -> {
+                    ResourcePermission permission = ResourcePermission.builder().resourceRole(ResourceRole.VIEWER).build();
+                    return permission;
+                })
+                .switchIfEmpty(checkPermissionWithReadableErrorMsg(applicationId, EDIT_APPLICATIONS))
                 .zipWhen(permission -> applicationService.findById(applicationId)
                         .delayUntil(application -> checkApplicationStatus(application, NORMAL)))
                 .zipWhen(tuple -> applicationService.getAllDependentModulesFromApplication(tuple.getT2(), false), TupleUtils::merge)
                 .zipWhen(tuple -> organizationService.getOrgCommonSettings(tuple.getT2().getOrganizationId()), TupleUtils::merge)
-                .map(tuple -> {
+                .flatMap(tuple -> {
                     ResourcePermission permission = tuple.getT1();
                     Application application = tuple.getT2();
                     List<Application> dependentModules = tuple.getT3();
                     Map<String, Object> commonSettings = tuple.getT4();
+
                     Map<String, Map<String, Object>> dependentModuleDsl = dependentModules.stream()
                             .collect(Collectors.toMap(Application::getId, Application::getLiveApplicationDsl, (a, b) -> b));
-                    return ApplicationView.builder()
+                    return applicationService.updateById(applicationId, application).map(__ ->
+                        ApplicationView.builder()
                             .applicationInfoView(buildView(application, permission.getResourceRole().getValue()))
                             .applicationDSL(application.getEditingApplicationDSL())
                             .moduleDSL(dependentModuleDsl)
                             .orgCommonSettings(commonSettings)
-                            .build();
+                            .build());
                 });
     }
 
@@ -335,7 +344,7 @@ public class ApplicationApiServiceImpl implements ApplicationApiService {
 
     private Mono<Application> doUpdateApplication(String applicationId, Application application) {
         Application applicationUpdate = Application.builder()
-                .editingApplicationDSL(application.getEditingApplicationDSL())
+                .editingApplicationDSL(application.getEditingApplicationDSLOrNull())
                 .name(application.getName())
                 .build();
         return applicationService.updateById(applicationId, applicationUpdate)
@@ -353,6 +362,15 @@ public class ApplicationApiServiceImpl implements ApplicationApiService {
                                 .applicationInfoView(buildView(applicationUpdated, permission.getResourceRole().getValue()))
                                 .applicationDSL(applicationUpdated.getLiveApplicationDsl())
                                 .build()));
+    }
+
+    @Override
+    public Mono<Boolean> updateEditState(String applicationId, ApplicationEndpoints.UpdateEditStateRequest updateEditStateRequest) {
+        return checkApplicationStatus(applicationId, NORMAL)
+                .then(sessionUserService.getVisitorId())
+                .flatMap(userId -> resourcePermissionService.checkAndReturnMaxPermission(userId,
+                        applicationId, EDIT_APPLICATIONS))
+                .flatMap(permission -> applicationService.updateEditState(applicationId, updateEditStateRequest.editingFinished()));
     }
 
     @Override
@@ -472,20 +490,37 @@ public class ApplicationApiServiceImpl implements ApplicationApiService {
     public Mono<ResourcePermission> checkApplicationPermissionWithReadableErrorMsg(String applicationId, ResourceAction action, ApplicationRequestType requestType) {
         return sessionUserService.getVisitorId()
                 .flatMap(visitorId -> resourcePermissionService.checkUserPermissionStatusOnApplication(visitorId, applicationId, action, requestType))
+                .publishOn(Schedulers.boundedElastic())
                 .flatMap(permissionStatus -> {
                     if (!permissionStatus.hasPermission()) {
+
+                        String orgId = "";
+                        try {
+                            orgId = applicationService.findById(applicationId)
+                                    .map(Application::getOrganizationId)
+                                    .onErrorReturn("")
+                                    .block(Duration.ofSeconds(5));
+                        } catch(Throwable cause) {
+                            log.warn("Couldn't get orgId! - {}", cause.getMessage());
+                        }
+
+                        HttpHeaders headers = new HttpHeaders();
+                        if (StringUtils.isNotBlank(orgId)) {
+                            headers.add("X-ORG-ID", orgId);
+                        }
+
                         if (permissionStatus.failByAnonymousUser()) {
-                            return ofError(USER_NOT_SIGNED_IN, "USER_NOT_SIGNED_IN");
+                            return ofErrorWithHeaders(USER_NOT_SIGNED_IN, "USER_NOT_SIGNED_IN", headers);
                         }
 
                         if (permissionStatus.failByNotInOrg()) {
-                            return ofError(NO_PERMISSION_TO_REQUEST_APP, "INSUFFICIENT_PERMISSION");
+                            return ofErrorWithHeaders(NO_PERMISSION_TO_REQUEST_APP, "INSUFFICIENT_PERMISSION", headers);
                         }
 
                         return suggestAppAdminSolutionService.getSuggestAppAdminNames(applicationId)
                                 .flatMap(names -> {
                                     String messageKey = action == EDIT_APPLICATIONS ? "NO_PERMISSION_TO_EDIT" : "NO_PERMISSION_TO_VIEW";
-                                    return ofError(NO_PERMISSION_TO_REQUEST_APP, messageKey, names);
+                                    return ofErrorWithHeaders(NO_PERMISSION_TO_REQUEST_APP, messageKey, headers, names);
                                 });
                     }
                     return Mono.just(permissionStatus.getPermission());
@@ -501,6 +536,7 @@ public class ApplicationApiServiceImpl implements ApplicationApiService {
     private ApplicationInfoView buildView(Application application, String role, @Nullable String folderId) {
         return ApplicationInfoView.builder()
                 .applicationId(application.getId())
+                .applicationGid(application.getGid())
                 .orgId(application.getOrganizationId())
                 .name(application.getName())
                 .createBy(application.getCreatedBy())
@@ -512,6 +548,9 @@ public class ApplicationApiServiceImpl implements ApplicationApiService {
                 .publicToAll(application.isPublicToAll())
                 .publicToMarketplace(application.isPublicToMarketplace())
                 .agencyProfile(application.agencyProfile())
+                .editingUserId(application.getEditingUserId())
+                .lastModifyTime(application.getUpdatedAt())
+                .lastEditedAt(application.getLastEditedAt())
                 .build();
     }
 

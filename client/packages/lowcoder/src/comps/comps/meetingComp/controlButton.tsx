@@ -52,9 +52,10 @@ const Container = styled.div<{ $style: any }>`
 const getStyle = (style: any) => {
   return css`
     button {
-      border: 1px solid ${style.border};
+      border: ${style.borderWidth} ${style.borderStyle} ${style.border};
       border-radius: ${style.radius};
       margin: ${style.margin};
+      rotate: ${style.rotation};
       padding: ${style.padding};
       max-width: ${widthCalculator(style.margin)};
       max-height: ${heightCalculator(style.margin)};
@@ -185,6 +186,7 @@ const childrenMap = {
   prefixIcon: IconControl,
   style: ButtonStyleControl,
   viewRef: RefControl<HTMLElement>,
+  restrictPaddingOnRotation:withDefault(StringControl, 'controlButton')
 };
 
 let ButtonTmpComp = (function () {

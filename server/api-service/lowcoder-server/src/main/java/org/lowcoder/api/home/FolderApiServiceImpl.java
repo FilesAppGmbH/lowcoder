@@ -1,5 +1,6 @@
 package org.lowcoder.api.home;
 
+import com.github.f4b6a3.uuid.UuidCreator;
 import jakarta.annotation.Nonnull;
 import jakarta.annotation.Nullable;
 import lombok.RequiredArgsConstructor;
@@ -84,6 +85,7 @@ public class FolderApiServiceImpl implements FolderApiService {
         if (StringUtils.isBlank(folder.getName())) {
             return Mono.error(new BizException(BizError.INVALID_PARAMETER, "FOLDER_NAME_EMPTY"));
         }
+        if(StringUtils.isEmpty(folder.getId())) folder.setGid(UuidCreator.getTimeOrderedEpoch().toString());
         return orgDevChecker.checkCurrentOrgDev()
                 .then(sessionUserService.getVisitorOrgMemberCache())
                 .delayUntil(orgMember -> {
@@ -196,6 +198,26 @@ public class FolderApiServiceImpl implements FolderApiService {
                 .then();
     }
 
+    /**
+     * @param targetFolderId null means root folder
+     */
+    @Override
+    public Mono<Void> moveBundle(String bundleId, @Nullable String targetFolderId) {
+        return sessionUserService.getVisitorId()
+                // check permissions
+                .delayUntil(userId -> resourcePermissionService.checkResourcePermissionWithError(userId, bundleId,
+                        ResourceAction.MANAGE_BUNDLES))
+                // remove old relations
+                .then(folderElementRelationService.deleteByElementId(bundleId))
+                .flatMap(b -> {
+                    if (StringUtils.isBlank(targetFolderId)) {
+                        return Mono.empty();
+                    }
+                    return folderElementRelationService.create(targetFolderId, bundleId);
+                })
+                .then();
+    }
+
     @Override
     public Mono<Void> upsertLastViewTime(@Nullable String folderId) {
         if (StringUtils.isBlank(folderId)) {
@@ -211,8 +233,8 @@ public class FolderApiServiceImpl implements FolderApiService {
      * @return flux of {@link ApplicationInfoView} or {@link FolderInfoView}
      */
     @Override
-    public Flux<?> getElements(@Nullable String folderId, @Nullable ApplicationType applicationType) {
-        return buildApplicationInfoViewTree(applicationType)
+    public Flux<?> getElements(@Nullable String folderId, @Nullable ApplicationType applicationType, @Nullable String name) {
+        return buildApplicationInfoViewTree(applicationType, name)
                 .flatMap(tree -> {
                     FolderNode<ApplicationInfoView, FolderInfoView> folderNode = tree.get(folderId);
                     if (folderNode == null) {
@@ -256,13 +278,13 @@ public class FolderApiServiceImpl implements FolderApiService {
                 .map(folders -> new Tree<>(folders, Folder::getId, Folder::getParentFolderId, Collections.emptyList(), null, null));
     }
 
-    private Mono<Tree<ApplicationInfoView, FolderInfoView>> buildApplicationInfoViewTree(@Nullable ApplicationType applicationType) {
+    private Mono<Tree<ApplicationInfoView, FolderInfoView>> buildApplicationInfoViewTree(@Nullable ApplicationType applicationType, @Nullable String name) {
 
         Mono<OrgMember> orgMemberMono = sessionUserService.getVisitorOrgMemberCache()
                 .cache();
 
         Flux<ApplicationInfoView> applicationInfoViewFlux =
-                userHomeApiService.getAllAuthorisedApplications4CurrentOrgMember(applicationType, ApplicationStatus.NORMAL, false)
+                userHomeApiService.getAllAuthorisedApplications4CurrentOrgMember(applicationType, ApplicationStatus.NORMAL, false, null)
                         .cache();
 
         Mono<Map<String, String>> application2FolderMapMono = applicationInfoViewFlux
@@ -272,6 +294,9 @@ public class FolderApiServiceImpl implements FolderApiService {
                 .collectMap(FolderElement::elementId, FolderElement::folderId);
 
         Flux<Folder> folderFlux = orgMemberMono.flatMapMany(orgMember -> folderService.findByOrganizationId(orgMember.getOrgId()))
+                .filter(folder -> name == null || StringUtils.containsIgnoreCase(folder.getName(), name)
+                        || StringUtils.containsIgnoreCase(folder.getType(), name)
+                        || StringUtils.containsIgnoreCase(folder.getDescription(), name))
                 .cache();
 
         Mono<Map<String, Instant>> folderId2LastViewTimeMapMono = orgMemberMono
@@ -295,7 +320,9 @@ public class FolderApiServiceImpl implements FolderApiService {
                             return FolderInfoView.builder()
                                     .orgId(orgMember.getOrgId())
                                     .folderId(folder.getId())
+                                    .folderGid(folder.getGid())
                                     .parentFolderId(folder.getParentFolderId())
+                                    .parentFolderGid(folder.getParentFolderGid())
                                     .name(folder.getName())
                                     .createAt(folder.getCreatedAt().toEpochMilli())
                                     .createBy(creator == null ? null : creator.getName())
@@ -415,6 +442,7 @@ public class FolderApiServiceImpl implements FolderApiService {
                 .map(user -> FolderInfoView.builder()
                         .orgId(folder.getOrganizationId())
                         .folderId(folder.getId())
+                        .folderGid(folder.getGid())
                         .parentFolderId(folder.getParentFolderId())
                         .name(folder.getName())
                         .description(folder.getDescription())

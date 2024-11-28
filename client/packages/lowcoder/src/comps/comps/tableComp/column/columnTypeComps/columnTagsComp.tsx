@@ -92,10 +92,13 @@ export const Wrapper = styled.div`
   position: absolute;
   top: 0;
   background: transparent !important;
+  padding: 8px;
+
   > div {
     width: 100%;
     height: 100%;
   }
+
   .ant-select {
     height: 100%;
     .ant-select-selector {
@@ -145,6 +148,9 @@ export const Wrapper = styled.div`
       }
     }
   }
+  .ant-tag {
+    margin-left: 5px;
+  }
   .ant-tag svg {
     margin-right: 4px;
   }
@@ -155,6 +161,10 @@ export const DropdownStyled = styled.div`
     padding: 3px 8px;
     margin: 0 0 2px 8px;
     border-radius: 4px;
+
+    &.ant-select-item-option-active {
+      background-color: #f2f7fc;
+    }
   }
   .ant-select-item-option-content {
     display: flex;
@@ -169,6 +179,7 @@ export const DropdownStyled = styled.div`
 `;
 
 export const TagStyled = styled(Tag)`
+  margin-right: 8px;
   svg {
     margin-right: 4px;
   }
@@ -188,7 +199,7 @@ const TagEdit = (props: TagEditPropsType) => {
     });
     return result;
   });
-  const [open, setOpen] = useState(true);
+  const [open, setOpen] = useState(false);
   return (
     <Wrapper>
       <CustomSelect
@@ -200,6 +211,7 @@ const TagEdit = (props: TagEditPropsType) => {
         defaultValue={props.value}
         style={{ width: "100%" }}
         open={open}
+        allowClear={true}
         suffixIcon={<PackUpIcon />}
         onSearch={(value: string) => {
           if (defaultTags.findIndex((item) => item.includes(value)) < 0) {
@@ -211,6 +223,7 @@ const TagEdit = (props: TagEditPropsType) => {
         }}
         onChange={(value: string | string[]) => {
           props.onChange(value);
+          setOpen(false)
         }}
         dropdownRender={(originNode: ReactNode) => (
           <DropdownStyled>
@@ -218,11 +231,12 @@ const TagEdit = (props: TagEditPropsType) => {
           </DropdownStyled>
         )}
         dropdownStyle={{ marginTop: "7px", padding: "8px 0 6px 0" }}
-        onBlur={props.onChangeEnd}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") {
-            props.onChangeEnd();
-          }
+        onFocus={() => {
+          setOpen(true);
+        }}
+        onBlur={() => {
+          props.onChangeEnd();
+          setOpen(false);
         }}
         onClick={() => setOpen(!open)}
       >
@@ -254,14 +268,16 @@ export const ColumnTagsComp = (function () {
       tagOptionsList = props.tagColors;
       let value = props.changeValue ?? getBaseValue(props, dispatch);
       value = typeof value === "string" && value.split(",")[1] ? value.split(",") : value;
-      const tags = _.isArray(value) ? value : [value];
+      const tags = _.isArray(value) ? value : (value.length ? [value] : []);
       const view = tags.map((tag, index) => {
         // The actual eval value is of type number or boolean
         const tagText = String(tag);
         return (
-          <TagStyled color={getTagColor(tagText, tagOptions)} icon={getTagIcon(tagText, tagOptions)} key={index} >
-            {tagText}
-          </TagStyled>
+          <div>
+            <TagStyled color={getTagColor(tagText, tagOptions)} icon={getTagIcon(tagText, tagOptions)} key={index} >
+              {tagText}
+            </TagStyled>
+          </div>
         );
       });
       return view;

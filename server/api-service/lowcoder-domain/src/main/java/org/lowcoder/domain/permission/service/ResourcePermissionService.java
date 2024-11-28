@@ -2,6 +2,7 @@ package org.lowcoder.domain.permission.service;
 
 import jakarta.annotation.Nullable;
 import org.lowcoder.domain.application.model.ApplicationRequestType;
+import org.lowcoder.domain.bundle.model.BundleRequestType;
 import org.lowcoder.domain.permission.model.*;
 import org.lowcoder.infra.annotation.NonEmptyMono;
 import org.lowcoder.infra.annotation.PossibleEmptyMono;
@@ -22,6 +23,8 @@ public interface ResourcePermissionService {
 
     @NonEmptyMono
     Mono<List<ResourcePermission>> getByApplicationId(String applicationId);
+    @NonEmptyMono
+    Mono<List<ResourcePermission>> getByBundleId(String bundleId);
 
     @NonEmptyMono
     Mono<List<ResourcePermission>> getByDataSourceId(String dataSourceId);
@@ -33,9 +36,10 @@ public interface ResourcePermissionService {
                                                 String userId,
                                                 ResourceRole role);
 
-    Mono<Boolean> addApplicationPermissionToUser(String applicationId,
+    Mono<Boolean> addResourcePermissionToUser(String resourceId,
                                                  String userId,
-                                                 ResourceRole role);
+                                                 ResourceRole role,
+                                                 ResourceType type);
 
     Mono<Boolean> addApplicationPermissionToGroup(String applicationId,
                                                   String groupId,
@@ -66,6 +70,8 @@ public interface ResourcePermissionService {
 
     Mono<UserPermissionOnResourceStatus> checkUserPermissionStatusOnApplication
             (String userId, String resourceId, ResourceAction resourceAction, ApplicationRequestType requestType);
+    Mono<UserPermissionOnResourceStatus> checkUserPermissionStatusOnBundle
+            (String userId, String resourceId, ResourceAction resourceAction, BundleRequestType requestType);
 
     Mono<Boolean> removeUserApplicationPermission(String appId, String userId);
 

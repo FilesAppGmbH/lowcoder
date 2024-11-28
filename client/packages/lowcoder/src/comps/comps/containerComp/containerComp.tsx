@@ -16,10 +16,13 @@ import { BoolCodeControl } from "comps/controls/codeControl";
 import { DisabledContext } from "comps/generators/uiCompBuilder";
 import React, { useContext } from "react";
 import { EditorContext } from "comps/editorState";
+import { AnimationStyle } from "@lowcoder-ee/comps/controls/styleControlConstants";
+import { styleControl } from "@lowcoder-ee/comps/controls/styleControl";
 
 export const ContainerBaseComp = (function () {
   const childrenMap = {
     disabled: BoolCodeControl,
+    animationStyle: styleControl(AnimationStyle),
   };
   return new ContainerCompBuilder(childrenMap, (props, dispatch) => {
     return (
@@ -78,7 +81,7 @@ function convertOldContainerParams(params: CompParams<any>) {
     // old params
     if (container && (container.hasOwnProperty("layout") || container.hasOwnProperty("items"))) {
       const autoHeight = tempParams.value.autoHeight;
-      const scrollbars = tempParams.value.scrollbars;
+      const scrollbars = tempParams.value.showVerticalScrollbar;
       return {
         ...tempParams,
         value: {

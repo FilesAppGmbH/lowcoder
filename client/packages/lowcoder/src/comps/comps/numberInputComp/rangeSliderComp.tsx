@@ -14,14 +14,15 @@ const RangeSliderBasicComp = (function () {
     end: numberExposingStateControl("end", 60),
     vertical: BoolControl,
   };
-  return new UICompBuilder(childrenMap, (props) => {
+  return new UICompBuilder(childrenMap, (props, dispatch) => {
     return props.label({
       style: props.style,
       labelStyle: props.labelStyle,
       inputFieldStyle:props.inputFieldStyle,
+      animationStyle:props.animationStyle,
       children: (
         <SliderWrapper
-          vertical={props.vertical}
+          $vertical={Boolean(props.vertical)}
           onMouseDown={(e: any) => {
             e.stopPropagation();
             return false;
@@ -34,7 +35,7 @@ const RangeSliderBasicComp = (function () {
             value={[props.start.value, props.end.value]}
             $style={props.inputFieldStyle}
             style={{ margin: 0 }}
-            vertical={props.vertical || false}
+            $vertical={Boolean(props.vertical) || false}
             onChange={([start, end]) => {
               props.start.onChange(start);
               props.end.onChange(end);

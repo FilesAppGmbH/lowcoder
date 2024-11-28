@@ -88,15 +88,19 @@ public class AuthenticationApiServiceImpl implements AuthenticationApiService {
                     log.warn("source is deprecated and will be removed in the future, please use authId instead. {}", source);
                     return authenticationService.findAuthConfigBySource(context.getOrgId(), source);
                 })
-                .doOnNext(findAuthConfig -> {
+                .flatMap(findAuthConfig -> {
                     context.setAuthConfig(findAuthConfig.authConfig());
                     if (findAuthConfig.authConfig().getSource().equals("EMAIL")) {
                         if(StringUtils.isBlank(context.getOrgId())) {
                             context.setOrgId(Optional.ofNullable(findAuthConfig.organization()).map(Organization::getId).orElse(null));
                         }
+                        if(!findAuthConfig.authConfig().getEnable()) {
+                            return Mono.error(new BizException(EMAIL_PROVIDER_DISABLED, "EMAIL_PROVIDER_DISABLED"));
+                        }
                     } else {
                         context.setOrgId(Optional.ofNullable(findAuthConfig.organization()).map(Organization::getId).orElse(null));
                     }
+                    return Mono.just(findAuthConfig);
                 })
                 .then(authRequestFactory.build(context))
                 .flatMap(authRequest -> authRequest.auth(context))
@@ -116,7 +120,7 @@ public class AuthenticationApiServiceImpl implements AuthenticationApiService {
     @Override
     public Mono<Void> loginOrRegister(AuthUser authUser, ServerWebExchange exchange,
                                       String invitationId, boolean linKExistingUser) {
-        return updateOrCreateUser(authUser, linKExistingUser)
+        return updateOrCreateUser(authUser, linKExistingUser, false)
                 .delayUntil(user -> ReactiveSecurityContextHolder.getContext()
                         .doOnNext(securityContext -> securityContext.setAuthentication(AuthenticationUtils.toAuthentication(user))))
                 // save token and set cookie
@@ -147,11 +151,11 @@ public class AuthenticationApiServiceImpl implements AuthenticationApiService {
                 .then(businessEventPublisher.publishUserLoginEvent(authUser.getSource()));
     }
 
-    public Mono<User> updateOrCreateUser(AuthUser authUser, boolean linkExistingUser) {
+    public Mono<User> updateOrCreateUser(AuthUser authUser, boolean linkExistingUser, boolean isSuperAdmin) {
 
         if(linkExistingUser) {
             return sessionUserService.getVisitor()
-                    .flatMap(user -> userService.addNewConnectionAndReturnUser(user.getId(), authUser.toAuthConnection()));
+                    .flatMap(user -> userService.addNewConnectionAndReturnUser(user.getId(), authUser));
         }
 
         return findByAuthUserSourceAndRawId(authUser).zipWith(findByAuthUserRawId(authUser))
@@ -164,31 +168,18 @@ public class AuthenticationApiServiceImpl implements AuthenticationApiService {
                     if (findByAuthUserFirst.userExist()) {
                         User user = findByAuthUserFirst.user();
                         updateConnection(authUser, user);
-                        return userService.update(user.getId(), user);
+                        return userService.saveUser(user);
                     }
 
                     //If the user connection is not found with login id, but the user is
                     // found for the same id in some different connection, then just add a new connection to the user
                     if(findByAuthUserSecond.userExist()) {
                         User user = findByAuthUserSecond.user();
-                        return userService.addNewConnectionAndReturnUser(user.getId(), authUser.toAuthConnection());
+                        return userService.addNewConnectionAndReturnUser(user.getId(), authUser);
                     }
 
-                    // if the user is logging/registering via OAuth provider for the first time,
-                    // but is not anonymous, then just add a new connection
-
-                     userService.findById(authUser.getUid())
-                             .switchIfEmpty(Mono.empty())
-                             .filter(user -> {
-                                 // not logged in yet
-                                 return !user.isAnonymous();
-                             }).doOnNext(user -> {
-                                 userService.addNewConnection(user.getId(), authUser.toAuthConnection());
-                             }).subscribe();
-
-
                     if (authUser.getAuthContext().getAuthConfig().isEnableRegister()) {
-                        return userService.createNewUserByAuthUser(authUser);
+                        return userService.createNewUserByAuthUser(authUser, isSuperAdmin);
                     }
                     return Mono.error(new BizException(USER_NOT_EXIST, "USER_NOT_EXIST"));
                 });
@@ -218,6 +209,11 @@ public class AuthenticationApiServiceImpl implements AuthenticationApiService {
         }
         // clean old data
         oldConnection.setAuthId(authUser.getAuthContext().getAuthConfig().getId());
+
+        //if auth by google, set refresh token
+        if (authUser.getAuthToken()!=null && oldConnection.getAuthConnectionAuthToken()!=null && StringUtils.isEmpty(authUser.getAuthToken().getRefreshToken()) && StringUtils.isNotEmpty(oldConnection.getAuthConnectionAuthToken().getRefreshToken())) {
+            authUser.getAuthToken().setRefreshToken(oldConnection.getAuthConnectionAuthToken().getRefreshToken());
+        }
 
         // Save the auth token which may be used in the future datasource or query.
         oldConnection.setAuthConnectionAuthToken(
@@ -254,9 +250,13 @@ public class AuthenticationApiServiceImpl implements AuthenticationApiService {
                 .then(sessionUserService.getVisitorOrgMemberCache())
                 .flatMap(orgMember -> organizationService.getById(orgMember.getOrgId()))
                 .doOnNext(organization -> {
-                    boolean duplicateAuthType = addOrUpdateNewAuthConfig(organization, authConfigFactory.build(authConfigRequest, true));
-                    if(duplicateAuthType) {
-                        deferredError(DUPLICATE_AUTH_CONFIG_ADDITION, "DUPLICATE_AUTH_CONFIG_ADDITION");
+                    if(authConfigRequest.getId().equals("EMAIL")) {
+                        organization.setIsEmailDisabled(false);
+                    } else {
+                        boolean duplicateAuthType = addOrUpdateNewAuthConfig(organization, authConfigFactory.build(authConfigRequest, true));
+                        if (duplicateAuthType) {
+                            deferredError(DUPLICATE_AUTH_CONFIG_ADDITION, "DUPLICATE_AUTH_CONFIG_ADDITION");
+                        }
                     }
                 })
                 .flatMap(organization -> organizationService.update(organization.getId(), organization));
@@ -354,22 +354,15 @@ public class AuthenticationApiServiceImpl implements AuthenticationApiService {
      * If true, throw an exception to avoid disabling the last effective connection way.
      */
     private Mono<Void> checkIfOnlyEffectiveCurrentUserConnections(String authId) {
-        Mono<List<String>> userConnectionAuthConfigIdListMono = sessionUserService.getVisitor()
-                .flatMapIterable(User::getConnections)
-                .filter(connection -> StringUtils.isNotBlank(connection.getAuthId()))
-                .map(Connection::getAuthId)
-                .collectList();
-        Mono<List<String>> orgAuthIdListMono = authenticationService.findAllAuthConfigs(null, true)
-                .map(FindAuthConfig::authConfig)
-                .map(AbstractAuthConfig::getId)
-                .collectList();
-        return Mono.zip(userConnectionAuthConfigIdListMono, orgAuthIdListMono)
-                .delayUntil(tuple -> {
-                    List<String> userConnectionAuthConfigIds = tuple.getT1();
-                    List<String> orgAuthConfigIds = tuple.getT2();
-                    userConnectionAuthConfigIds.retainAll(orgAuthConfigIds);
-                    userConnectionAuthConfigIds.remove(authId);
-                    if (CollectionUtils.isEmpty(userConnectionAuthConfigIds)) {
+        return sessionUserService.getVisitorOrgMemberCache()
+                .map(OrgMember::getOrgId)
+                .flatMap(orgId -> authenticationService.findAllAuthConfigs(orgId, true)
+                        .map(FindAuthConfig::authConfig)
+                        .map(AbstractAuthConfig::getId)
+                        .collectList())
+                .delayUntil(orgAuthConfigIds -> {
+                    orgAuthConfigIds.remove(authId);
+                    if (CollectionUtils.isEmpty(orgAuthConfigIds)) {
                         return Mono.error(new BizException(DISABLE_AUTH_CONFIG_FORBIDDEN, "DISABLE_AUTH_CONFIG_FORBIDDEN"));
                     }
                     return Mono.empty();
@@ -378,26 +371,29 @@ public class AuthenticationApiServiceImpl implements AuthenticationApiService {
     }
 
     private void disableAuthConfig(Organization organization, String authId, boolean delete) {
-
-        Predicate<AbstractAuthConfig> authConfigPredicate = abstractAuthConfig -> Objects.equals(abstractAuthConfig.getId(), authId);
-
-        if(delete) {
-            List<AbstractAuthConfig> abstractAuthConfigs = Optional.of(organization)
-                    .map(Organization::getAuthConfigs)
-                    .orElse(Collections.emptyList());
-
-            abstractAuthConfigs.removeIf(authConfigPredicate);
-
-            organization.getOrganizationDomain().setConfigs(abstractAuthConfigs);
-
+        if(authId.equals("EMAIL")) {
+            organization.setIsEmailDisabled(true);
         } else {
-            Optional.of(organization)
-                    .map(Organization::getAuthConfigs)
-                    .orElse(Collections.emptyList()).stream()
-                    .filter(authConfigPredicate)
-                    .forEach(abstractAuthConfig -> {
-                        abstractAuthConfig.setEnable(false);
-                    });
+            Predicate<AbstractAuthConfig> authConfigPredicate = abstractAuthConfig -> Objects.equals(abstractAuthConfig.getId(), authId);
+
+            if (delete) {
+                List<AbstractAuthConfig> abstractAuthConfigs = Optional.of(organization)
+                        .map(Organization::getAuthConfigs)
+                        .orElse(Collections.emptyList());
+
+                abstractAuthConfigs.removeIf(authConfigPredicate);
+
+                organization.getOrganizationDomain().setConfigs(abstractAuthConfigs);
+
+            } else {
+                Optional.of(organization)
+                        .map(Organization::getAuthConfigs)
+                        .orElse(Collections.emptyList()).stream()
+                        .filter(authConfigPredicate)
+                        .forEach(abstractAuthConfig -> {
+                            abstractAuthConfig.setEnable(false);
+                        });
+            }
         }
     }
 

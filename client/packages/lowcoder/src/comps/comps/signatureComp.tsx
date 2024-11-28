@@ -12,15 +12,14 @@ import {
   SignatureStyleType,
   widthCalculator,
   heightCalculator,
-  
-  InputFieldStyle
+  SignatureContainerStyle
 } from "comps/controls/styleControlConstants";
 import { stateComp, withDefault } from "comps/generators/simpleGenerators";
 import { hiddenPropertyView } from "comps/utils/propertyUtils";
 import { trans } from "i18n";
 import { changeValueAction, multiChangeAction } from "lowcoder-core";
 import { Section, sectionNames, UndoIcon } from "lowcoder-design";
-import React, { Suspense, useState } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import ReactResizeDetector from "react-resize-detector";
 import type SignatureCanvasType from "react-signature-canvas";
 import styled from "styled-components";
@@ -97,15 +96,15 @@ const Wrapper = styled.div<{ $style: SignatureStyleType; $isEmpty: boolean }>`
 `;
 
 const childrenMap = {
-  tips: withDefault(StringControl, trans("signature.signHere")),
+  tips: withDefault(StringControl, trans('signature.signHere')),
   onEvent: ChangeEventHandlerControl,
-  label: withDefault(LabelControl, { position: "column", text: "" }),
-  style: styleControl(InputFieldStyle),
-  labelStyle: styleControl(LabelStyle),
+  label: withDefault(LabelControl, {position: 'column', text: ''}),
+  style: styleControl(SignatureContainerStyle , 'style'),
+  labelStyle: styleControl(LabelStyle , 'labelStyle'),
   showUndo: withDefault(BoolControl, true),
   showClear: withDefault(BoolControl, true),
-  value: stateComp(""),
-  inputFieldStyle:styleControl(SignatureStyle),
+  value: stateComp(''),
+  inputFieldStyle: styleControl(SignatureStyle , 'inputFieldStyle'),
   ...formDataChildren,
 };
 

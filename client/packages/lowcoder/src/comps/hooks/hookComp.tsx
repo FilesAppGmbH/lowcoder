@@ -26,7 +26,7 @@ import { trans } from "i18n";
 import _ from "lodash";
 import dayjs from "dayjs";
 import { ConstructorToComp } from "lowcoder-core";
-import { Section, sectionNames } from "lowcoder-design";
+import { ScrollBar, Section, sectionNames } from "lowcoder-design";
 import React, { useContext, useEffect, useMemo } from "react";
 import { useInterval, useTitle, useWindowSize } from "react-use";
 import { useCurrentUser } from "util/currentUser";
@@ -88,7 +88,8 @@ const TitleHookComp = withPropertyViewFn(TitleTmp2Comp, (comp) => {
   );
 });
 const builtInRemoteComps: Omit<RemoteCompInfo, "compName"> = {
-  source: !!REACT_APP_BUNDLE_BUILTIN_PLUGIN ? "bundle" : "npm",
+  // source: !!REACT_APP_BUNDLE_BUILTIN_PLUGIN ? "bundle" : "npm",
+  source: "npm",
   isRemote: true,
   packageName: "lowcoder-comps",
 };
@@ -204,7 +205,9 @@ export class HookComp extends HookTmpComp {
     return (
       <>
         <CompName name={this.children.name.getView()} />
-        {this.children.comp.getPropertyView()}
+        <ScrollBar>
+          {this.children.comp.getPropertyView()}
+        </ScrollBar>
       </>
     );
   }
